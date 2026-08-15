@@ -1,3 +1,0 @@
-git clone https://github.com/patelsaumy06-ctrl/CODE_CRAFTERS
-cd CODE_CRAFTERS
-
