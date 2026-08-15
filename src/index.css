@@ -70,6 +70,13 @@
   .status-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+
+  /* Dashboard card base style */
+  .card-base {
+    background-color: #FFFDF9;
+    border: 1px solid #E7DED2;
+    box-shadow: 0px 2px 4px rgba(23, 50, 77, 0.05);
+  }
 }
 
 /* Keyframes */
