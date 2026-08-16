@@ -239,7 +239,7 @@ export const HeroPage = () => {
           <a className="font-data-label text-data-label text-[#6B7280] hover:text-primary transition-colors uppercase tracking-wider" href="#">System Status</a>
         </div>
         <div className="font-data-label text-data-label text-[#6B7280]">
-          © 2024 DISASTERLENS AI. CLASSIFIED PROFESSIONAL USE ONLY.
+          © 2026 DISASTERLENS AI. CLASSIFIED PROFESSIONAL USE ONLY.
         </div>
       </footer>
     </div>
