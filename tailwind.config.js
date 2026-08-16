@@ -53,7 +53,13 @@ export default {
         "outline": "#74777e",
         "surface-variant": "#e6e2db",
         "primary-container": "#17324d",
-        "on-error": "#ffffff"
+        "on-error": "#ffffff",
+        "brand-bg": "#F7F3EC",
+        "brand-panel": "#F1ECE4",
+        "brand-card": "#FFFDF9",
+        "brand-border": "#E7DED2",
+        "brand-accent": "#D98B3A",
+        "brand-navy": "#17324D"
       },
       borderRadius: {
         "DEFAULT": "0.25rem",
