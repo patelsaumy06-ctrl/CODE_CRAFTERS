@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { auth, db } from "../../firebase/firebase"
 import LoginscreenBG from '../../assets/LoginscreenBg.png'
 
@@ -28,17 +28,26 @@ export const Login = () => {
 
       console.log("Firebase user:", user)
 
-      // 2. Get user's profile from Firestore
+      // 2. Get user's profile from Firestore (by UID or Email)
+      let userData = null
       const userRef = doc(db, "users", user.uid)
       const userSnapshot = await getDoc(userRef)
 
-      if (!userSnapshot.exists()) {
+      if (userSnapshot.exists()) {
+        userData = userSnapshot.data()
+      } else if (user.email) {
+        const q = query(collection(db, "users"), where("email", "==", user.email))
+        const qSnap = await getDocs(q)
+        if (!qSnap.empty) {
+          userData = qSnap.docs[0].data()
+        }
+      }
+
+      if (!userData) {
         alert("User profile not found in Firestore.")
         setLoading(false)
         return
       }
-
-      const userData = userSnapshot.data()
 
       console.log("Firestore user:", userData)
 
@@ -51,13 +60,11 @@ export const Login = () => {
 
       // Sync local storage for existing session checks
       localStorage.setItem("token", user.accessToken || "token_" + user.uid)
-      localStorage.setItem("role", userData.role || "admin")
+      localStorage.setItem("role", userData.role)
       localStorage.setItem("userEmail", user.email || email)
 
       // 4. Navigate based on the REAL role
-      if (userData.role === "admin") {
-        navigate("/admin")
-      } else if (userData.role === "commander") {
+      if (userData.role === "admin" || userData.role === "commander") {
         navigate("/admin")
       } else if (userData.role === "responder") {
         navigate("/")
@@ -77,8 +84,8 @@ export const Login = () => {
         alert("User does not exist.")
       } else if (error.code === "auth/too-many-requests") {
         alert("Too many login attempts. Please try again later.")
-      } else {
-        alert("Login failed. Please try again.")
+      } else if (error.code === "permission-denied") {
+        alert("Permission denied accessing Firestore. Please publish rules in Firebase Console.")
       }
     } finally {
       setLoading(false)
@@ -162,7 +169,7 @@ export const Login = () => {
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="commander@agency.gov"
+                    placeholder="patelsaumy@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required

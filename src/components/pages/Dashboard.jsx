@@ -35,76 +35,23 @@ export const Dashboard = () => {
     return () => unsubscribe()
   }, [])
 
-  const initialMockIncidents = [
-    {
-      id: "INC-9042",
-      title: "Flash Flood & Levee Breach",
-      location: "Northern River Basin",
-      source: "Sensor & Social Stream",
-      urgency: "Critical",
-      confidence: 94,
-      time: "2m ago",
-      badgeColor: "bg-red-100 text-red-800 border-red-200"
-    },
-    {
-      id: "INC-9041",
-      title: "Structural Damage & Gas Leak",
-      location: "Downtown Sub-station B",
-      source: "Civic Reports & Drone Video",
-      urgency: "High",
-      confidence: 88,
-      time: "12m ago",
-      badgeColor: "bg-orange-100 text-orange-800 border-orange-200"
-    },
-    {
-      id: "INC-9039",
-      title: "Power Grid Instability",
-      location: "Eastern Sub-grid 4",
-      source: "Utility Telemetry API",
-      urgency: "Moderate",
-      confidence: 76,
-      time: "28m ago",
-      badgeColor: "bg-amber-100 text-amber-800 border-amber-200"
-    },
-    {
-      id: "INC-9035",
-      title: "Landslide Risk Assessment",
-      location: "Coastal Ridge Pass",
-      source: "Satellite SAR & Seismic",
-      urgency: "Monitoring",
-      confidence: 65,
-      time: "45m ago",
-      badgeColor: "bg-blue-100 text-blue-800 border-blue-200"
-    }
-  ]
+  // Map real Cloud Firestore incidents directly
+  const displayIncidents = dbIncidents.map(inc => ({
+    id: inc.id,
+    title: inc.title,
+    location: inc.location?.address || "Unknown Location",
+    source: inc.source || "Sensor Array",
+    urgency: inc.severity ? (inc.severity.charAt(0).toUpperCase() + inc.severity.slice(1)) : "Medium",
+    confidence: inc.verified ? 99 : 85,
+    time: inc.createdAt ? "Just now" : "Recently",
+    badgeColor: inc.severity === 'critical' ? "bg-red-100 text-red-800 border-red-200"
+      : inc.severity === 'high' ? "bg-orange-100 text-orange-800 border-orange-200"
+      : "bg-amber-100 text-amber-800 border-amber-200"
+  }))
 
-  // Combine real Firestore incidents with mock incidents if db is empty
-  const displayIncidents = dbIncidents.length > 0
-    ? dbIncidents.map(inc => ({
-        id: inc.id,
-        title: inc.title,
-        location: inc.location?.address || "Unknown Location",
-        source: inc.source || "Sensor Array",
-        urgency: inc.severity ? (inc.severity.charAt(0).toUpperCase() + inc.severity.slice(1)) : "Medium",
-        confidence: inc.verified ? 99 : 85,
-        time: inc.createdAt ? "Just now" : "Recently",
-        badgeColor: inc.severity === 'critical' ? "bg-red-100 text-red-800 border-red-200"
-          : inc.severity === 'high' ? "bg-orange-100 text-orange-800 border-orange-200"
-          : "bg-amber-100 text-amber-800 border-amber-200"
-      }))
-    : initialMockIncidents
-
-  const activeCount = dbIncidents.length > 0
-    ? dbIncidents.filter(i => i.status === 'active' || i.status === 'reported' || i.status === 'investigating').length
-    : 42
-
-  const verifiedCount = dbIncidents.length > 0
-    ? dbIncidents.filter(i => i.verified || i.status === 'verified').length
-    : 18
-
-  const criticalCount = dbIncidents.length > 0
-    ? dbIncidents.filter(i => i.severity === 'critical').length
-    : 5
+  const activeCount = dbIncidents.filter(i => i.status === 'active' || i.status === 'reported' || i.status === 'investigating').length
+  const verifiedCount = dbIncidents.filter(i => i.verified || i.status === 'verified').length
+  const criticalCount = dbIncidents.filter(i => i.severity === 'critical').length
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault()

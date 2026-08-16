@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react"
 import { onAuthStateChanged, signOut } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { auth, db } from "../firebase/firebase"
 
 const AuthContext = createContext()
@@ -18,11 +18,22 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
+          let profile = null
           const userRef = doc(db, "users", user.uid)
           const userSnap = await getDoc(userRef)
 
           if (userSnap.exists()) {
-            const profile = userSnap.data()
+            profile = userSnap.data()
+          } else if (user.email) {
+            // Secondary lookup by email in case document ID was created under different key
+            const q = query(collection(db, "users"), where("email", "==", user.email))
+            const qSnap = await getDocs(q)
+            if (!qSnap.empty) {
+              profile = qSnap.docs[0].data()
+            }
+          }
+
+          if (profile) {
             if (profile.status === "active") {
               setCurrentUser(user)
               setUserProfile(profile)
@@ -37,7 +48,7 @@ export const AuthProvider = ({ children }) => {
               localStorage.clear()
             }
           } else {
-            // User exists in Auth but no Firestore profile found yet
+            console.warn("User profile for " + user.email + " not found in Firestore.")
             setCurrentUser(user)
             setUserProfile(null)
           }
