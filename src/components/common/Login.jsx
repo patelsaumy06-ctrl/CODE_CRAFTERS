@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { auth, db } from "../../firebase/firebase"
 import LoginscreenBG from '../../assets/LoginscreenBg.png'
 
 export const Login = () => {
@@ -7,17 +10,78 @@ export const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('admin')
+  const [loading, setLoading] = useState(false)
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     if (e && e.preventDefault) e.preventDefault()
-    localStorage.setItem("token", "token_" + Date.now())
-    localStorage.setItem("role", role)
-    localStorage.setItem("userEmail", email || "commander@agency.gov")
+    setLoading(true)
 
-    if (role === 'admin' || role === 'commander' || role === 'responder') {
-      navigate("/admin")
-    } else {
-      navigate("/")
+    try {
+      // 1. Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      )
+
+      const user = userCredential.user
+
+      console.log("Firebase user:", user)
+
+      // 2. Get user's profile from Firestore
+      const userRef = doc(db, "users", user.uid)
+      const userSnapshot = await getDoc(userRef)
+
+      if (!userSnapshot.exists()) {
+        alert("User profile not found in Firestore.")
+        setLoading(false)
+        return
+      }
+
+      const userData = userSnapshot.data()
+
+      console.log("Firestore user:", userData)
+
+      // 3. Check account status
+      if (userData.status !== "active") {
+        alert("Your account is inactive.")
+        setLoading(false)
+        return
+      }
+
+      // Sync local storage for existing session checks
+      localStorage.setItem("token", user.accessToken || "token_" + user.uid)
+      localStorage.setItem("role", userData.role || "admin")
+      localStorage.setItem("userEmail", user.email || email)
+
+      // 4. Navigate based on the REAL role
+      if (userData.role === "admin") {
+        navigate("/admin")
+      } else if (userData.role === "commander") {
+        navigate("/admin")
+      } else if (userData.role === "responder") {
+        navigate("/")
+      } else {
+        navigate("/")
+      }
+
+    } catch (error) {
+      console.error("Login error:", error)
+
+      if (
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password"
+      ) {
+        alert("Invalid email or password.")
+      } else if (error.code === "auth/user-not-found") {
+        alert("User does not exist.")
+      } else if (error.code === "auth/too-many-requests") {
+        alert("Too many login attempts. Please try again later.")
+      } else {
+        alert("Login failed. Please try again.")
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -178,10 +242,11 @@ export const Login = () => {
               {/* Actions */}
               <div className="flex flex-col gap-sm">
                 <button
-                  className="w-full flex justify-center py-sm px-4 border border-transparent rounded-lg shadow-sm font-data-value text-data-value text-on-primary bg-primary-container hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-container transition-colors"
+                  className="w-full flex justify-center py-sm px-4 border border-transparent rounded-lg shadow-sm font-data-value text-data-value text-on-primary bg-primary-container hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-container transition-colors disabled:opacity-50"
                   type="submit"
+                  disabled={loading}
                 >
-                  Sign In
+                  {loading ? "Authenticating..." : "Sign In"}
                 </button>
                 {/* Divider */}
                 <div className="relative py-xs flex items-center">
@@ -192,7 +257,6 @@ export const Login = () => {
                 <button
                   className="w-full flex justify-center items-center gap-sm py-sm px-4 border border-outline-variant/60 rounded-lg bg-white/40 backdrop-blur-sm font-data-value text-data-value text-on-surface hover:bg-white/70 transition-colors"
                   type="button"
-                  onClick={handleLogin}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.56 12.25C22.56 11.47 22.49 10.72 22.36 10H12V14.26H17.92C17.67 15.63 16.89 16.8 15.72 17.58V20.34H19.29C21.37 18.42 22.56 15.58 22.56 12.25Z" fill="#4285F4"></path>

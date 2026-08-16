@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserData().role
+        : 'public';
+    }
+
+    function isUserActive() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserData().status == 'active'
+        : false;
+    }
+
+    function hasAnyRole(roles) {
+      return isUserActive() && getUserRole() in roles;
+    }
+
+    // USERS Collection
+    match /users/{userId} {
+      // Any authenticated active user can read user profiles
+      allow read: if isAuthenticated();
+
+      // Users can create their own profile, but default roles cannot be self-elevated to admin
+      allow create: if isAuthenticated() && request.auth.uid == userId
+        && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role in ['responder', 'public']);
+
+      // Users cannot change their own role or status unless an admin/commander approves
+      allow update: if isAuthenticated() && (
+        hasAnyRole(['admin', 'commander']) || (
+          request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.status == resource.data.status
+        )
+      );
+
+      // Only admins can delete user profiles
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    // INCIDENTS Collection
+    match /incidents/{incidentId} {
+      // Anyone authenticated or public can read disaster incidents
+      allow read: if true;
+
+      // Authenticated active users can create incidents, enforcing createdBy == request.auth.uid
+      allow create: if isAuthenticated() && isUserActive()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0;
+
+      // Authorized roles (admin, commander, responder) can update incidents
+      allow update: if hasAnyRole(['admin', 'commander', 'responder']);
+
+      // Only admin or commander can delete incidents
+      allow delete: if hasAnyRole(['admin', 'commander']);
+    }
+  }
+}

@@ -1,12 +1,25 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 
 export const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation()
-  const token = localStorage.getItem('token')
-  const userRole = localStorage.getItem('role') || 'guest'
+  const { currentUser, userRole, loading } = useAuth()
 
-  if (!token) {
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F7F3EC] p-6 text-center">
+        <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-xl border border-[#E7DED2] shadow-sm">
+          <span className="w-5 h-5 border-2 border-[#D98B3A] border-t-transparent rounded-full animate-spin"></span>
+          <span className="text-sm font-semibold text-[#001d36]">Verifying Security Credentials...</span>
+        </div>
+      </div>
+    )
+  }
+
+  const token = localStorage.getItem('token')
+
+  if (!currentUser && !token) {
     // Redirect to login page if user is not authenticated
     return <Navigate to="/login" state={{ from: location }} replace />
   }

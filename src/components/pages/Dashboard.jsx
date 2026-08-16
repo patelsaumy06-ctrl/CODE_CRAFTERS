@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
+import { listenToIncidents, createIncident } from '../../services/incidentService'
 
 export const Dashboard = () => {
   const navigate = useNavigate()
@@ -9,7 +10,32 @@ export const Dashboard = () => {
   const [selectedLocation, setSelectedLocation] = useState("Global")
   const [selectedUrgency, setSelectedUrgency] = useState("Critical")
 
-  const incidents = [
+  const [dbIncidents, setDbIncidents] = useState([])
+  const [loadingIncidents, setLoadingIncidents] = useState(true)
+
+  // Incident Creation Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    disasterType: 'flood',
+    severity: 'critical',
+    status: 'active',
+    address: 'Northern River Basin, Sector 4',
+    source: 'Citizen Sensor & Satellite Ingestion',
+    sourceUrl: ''
+  })
+
+  useEffect(() => {
+    const unsubscribe = listenToIncidents((data) => {
+      setDbIncidents(data)
+      setLoadingIncidents(false)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  const initialMockIncidents = [
     {
       id: "INC-9042",
       title: "Flash Flood & Levee Breach",
@@ -51,6 +77,72 @@ export const Dashboard = () => {
       badgeColor: "bg-blue-100 text-blue-800 border-blue-200"
     }
   ]
+
+  // Combine real Firestore incidents with mock incidents if db is empty
+  const displayIncidents = dbIncidents.length > 0
+    ? dbIncidents.map(inc => ({
+        id: inc.id,
+        title: inc.title,
+        location: inc.location?.address || "Unknown Location",
+        source: inc.source || "Sensor Array",
+        urgency: inc.severity ? (inc.severity.charAt(0).toUpperCase() + inc.severity.slice(1)) : "Medium",
+        confidence: inc.verified ? 99 : 85,
+        time: inc.createdAt ? "Just now" : "Recently",
+        badgeColor: inc.severity === 'critical' ? "bg-red-100 text-red-800 border-red-200"
+          : inc.severity === 'high' ? "bg-orange-100 text-orange-800 border-orange-200"
+          : "bg-amber-100 text-amber-800 border-amber-200"
+      }))
+    : initialMockIncidents
+
+  const activeCount = dbIncidents.length > 0
+    ? dbIncidents.filter(i => i.status === 'active' || i.status === 'reported' || i.status === 'investigating').length
+    : 42
+
+  const verifiedCount = dbIncidents.length > 0
+    ? dbIncidents.filter(i => i.verified || i.status === 'verified').length
+    : 18
+
+  const criticalCount = dbIncidents.length > 0
+    ? dbIncidents.filter(i => i.severity === 'critical').length
+    : 5
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault()
+    setCreating(true)
+    try {
+      await createIncident({
+        title: formData.title,
+        description: formData.description,
+        disasterType: formData.disasterType,
+        severity: formData.severity,
+        status: formData.status,
+        location: {
+          latitude: 34.0522,
+          longitude: -118.2437,
+          address: formData.address
+        },
+        source: formData.source,
+        sourceUrl: formData.sourceUrl
+      })
+      alert("Incident successfully logged in Firestore!")
+      setIsModalOpen(false)
+      setFormData({
+        title: '',
+        description: '',
+        disasterType: 'flood',
+        severity: 'critical',
+        status: 'active',
+        address: 'Northern River Basin, Sector 4',
+        source: 'Citizen Sensor & Satellite Ingestion',
+        sourceUrl: ''
+      })
+    } catch (error) {
+      console.error("Error creating incident:", error)
+      alert("Failed to create incident: " + (error.message || "Permission denied"))
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
@@ -114,7 +206,7 @@ export const Dashboard = () => {
 
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => navigate("/admin/incident")}
+                onClick={() => setIsModalOpen(true)}
                 className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors shadow-sm flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-sm">add_alert</span>
@@ -143,10 +235,10 @@ export const Dashboard = () => {
                 <span className="material-symbols-outlined text-orange-500">warning</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[#001d36]">42</span>
+                <span className="text-2xl font-bold text-[#001d36]">{activeCount}</span>
                 <span className="text-xs font-bold text-orange-600">Active</span>
               </div>
-              <p className="text-[11px] text-[#74777e] mt-1">12 requires verification</p>
+              <p className="text-[11px] text-[#74777e] mt-1">Real-time active incidents</p>
             </div>
 
             <div className="bg-[#FFFDF9] border border-[#E7DED2] border-l-4 border-l-green-500 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -155,10 +247,10 @@ export const Dashboard = () => {
                 <span className="material-symbols-outlined text-green-600">verified</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[#001d36]">18</span>
+                <span className="text-2xl font-bold text-[#001d36]">{verifiedCount}</span>
                 <span className="text-xs font-bold text-green-600">Confirmed</span>
               </div>
-              <p className="text-[11px] text-[#74777e] mt-1">99.4% AI confidence score</p>
+              <p className="text-[11px] text-[#74777e] mt-1">Firestore verified incidents</p>
             </div>
 
             <div className="bg-[#FFFDF9] border border-[#E7DED2] border-l-4 border-l-red-600 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -167,10 +259,10 @@ export const Dashboard = () => {
                 <span className="material-symbols-outlined text-red-600">campaign</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-red-600">5</span>
+                <span className="text-2xl font-bold text-red-600">{criticalCount}</span>
                 <span className="text-xs font-bold text-red-600 animate-pulse">Urgent</span>
               </div>
-              <p className="text-[11px] text-[#74777e] mt-1">Immediate response needed</p>
+              <p className="text-[11px] text-[#74777e] mt-1">Critical severity items</p>
             </div>
           </div>
 
@@ -235,7 +327,7 @@ export const Dashboard = () => {
                     </span>
                   </div>
                   <div className="font-mono text-[10px] text-white/70">
-                    COORD: 34.0522° N, 118.2437° W | REFRESH: 5s
+                    COORD: 34.0522° N, 118.2437° W | REFRESH: Real-time
                   </div>
                 </div>
               </div>
@@ -250,7 +342,7 @@ export const Dashboard = () => {
                     <span className="material-symbols-outlined text-sm">auto_awesome</span>
                     AI Executive Summary
                   </span>
-                  <span className="text-[10px] font-mono text-[#74777e]">Updated 1m ago</span>
+                  <span className="text-[10px] font-mono text-[#74777e]">Live Stream</span>
                 </div>
                 <p className="text-xs text-[#1c1c18] leading-relaxed">
                   High-density social clusters combined with seismic telemetry indicate severe water rise near District 4. Emergency evacuation suggested.
@@ -278,8 +370,8 @@ export const Dashboard = () => {
                   </button>
                 </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto">
-                  {incidents.map((inc) => (
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[380px]">
+                  {displayIncidents.map((inc) => (
                     <div 
                       key={inc.id}
                       onClick={() => navigate("/admin/incident")}
@@ -306,6 +398,141 @@ export const Dashboard = () => {
           </div>
         </main>
       </div>
+
+      {/* New Incident Probe Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#001d36]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E7DED2] rounded-2xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-3">
+              <h3 className="text-lg font-bold text-[#001d36] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#D98B3A]">add_alert</span>
+                Report / Ingest New Disaster Incident
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-[#74777e] hover:text-[#001d36] text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Incident Title *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. Flash Flood & Levee Breach"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-medium focus:outline-none focus:border-[#D98B3A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Description</label>
+                <textarea 
+                  rows="3"
+                  placeholder="Provide incident details, casualty reports, or infrastructure impact..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-medium focus:outline-none focus:border-[#D98B3A]"
+                ></textarea>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Disaster Type</label>
+                  <select 
+                    value={formData.disasterType}
+                    onChange={(e) => setFormData({ ...formData, disasterType: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#D98B3A]"
+                  >
+                    <option value="earthquake">Earthquake</option>
+                    <option value="flood">Flood</option>
+                    <option value="cyclone">Cyclone</option>
+                    <option value="landslide">Landslide</option>
+                    <option value="wildfire">Wildfire</option>
+                    <option value="storm">Storm</option>
+                    <option value="drought">Drought</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Severity Level</label>
+                  <select 
+                    value={formData.severity}
+                    onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#D98B3A]"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Status</label>
+                  <select 
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-semibold focus:outline-none focus:border-[#D98B3A]"
+                  >
+                    <option value="reported">Reported</option>
+                    <option value="investigating">Investigating</option>
+                    <option value="verified">Verified</option>
+                    <option value="active">Active</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Source / Agency</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Hydro Sensor Array"
+                    value={formData.source}
+                    onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-medium focus:outline-none focus:border-[#D98B3A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#001d36] mb-1">Location Address</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Northern River Basin, Sector 4"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#E7DED2] rounded-lg text-xs font-medium focus:outline-none focus:border-[#D98B3A]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-[#E7DED2]">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-[#74777e] hover:bg-[#F7F3EC] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={creating}
+                  className="bg-[#001d36] text-white px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {creating ? "Ingesting..." : "Submit to Firestore"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
