@@ -1,5 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { collection, addDoc } from 'firebase/firestore'
+import { db } from '../../firebase/firebase'
 
 export const LiveIncident = () => {
   const navigate = useNavigate()
@@ -8,6 +10,23 @@ export const LiveIncident = () => {
     localStorage.removeItem("token")
     localStorage.removeItem("role")
     navigate("/login")
+  }
+
+  const addIncident = async () => {
+    try {
+      const docRef = await addDoc(collection(db, "incidents"), {
+        title: "Bridge Collapse",
+        location: "Gandhinagar",
+        severity: "High",
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      })
+      alert(`Added Incident with ID: ${docRef.id}`)
+      console.log("Added:", docRef.id)
+    } catch (error) {
+      console.error("Firebase error:", error)
+      alert(`Firebase error: ${error.message}`)
+    }
   }
 
   return (
@@ -140,6 +159,12 @@ export const LiveIncident = () => {
           </button>
           <button className="bg-surface-container hover:bg-surface-container-high text-on-surface px-3 py-2 rounded flex items-center gap-2 font-data-value text-data-value transition-colors" style={{ border: '1px solid #E7DED2' }}>
             <span className="material-symbols-outlined text-[18px]">location_on</span> Location
+          </button>
+          <button
+            onClick={addIncident}
+            className="bg-[#D98B3A] text-white px-3 py-2 rounded flex items-center gap-2 font-data-value text-data-value transition-colors hover:opacity-90 cursor-pointer ml-auto font-bold"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span> Add Incident
           </button>
         </section>
 

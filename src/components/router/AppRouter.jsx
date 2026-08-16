@@ -5,6 +5,7 @@ import { HeroPage } from "../pages/HeroPage"
 import { Dashboard } from "../pages/Dashboard"
 import { LiveIncident } from "../pages/LiveIncident"
 import { AnalyticsReports } from "../pages/AnalyticsReports"
+import { ProtectedRoute } from "../common/ProtectedRoute"
 
 const router = createBrowserRouter([
   {
@@ -21,15 +22,27 @@ const router = createBrowserRouter([
   },
   {
     path: "/admin",
-    element: <Dashboard />,
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+        <Dashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/admin/incident",
-    element: <LiveIncident />,
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+        <LiveIncident />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/admin/analytics",
-    element: <AnalyticsReports />,
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "commander"]}>
+        <AnalyticsReports />
+      </ProtectedRoute>
+    ),
   },
 ])
 

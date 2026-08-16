@@ -6,23 +6,29 @@ export const Login = () => {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState('admin')
 
   const handleLogin = (e) => {
-    e.preventDefault()
-    // Simulated authentication check matching original behavior
-    localStorage.setItem("token", "asbisahsaiusgmasyssuhsisahsaiosa")
-    localStorage.setItem("role", "student")
-    navigate("/admin")
+    if (e && e.preventDefault) e.preventDefault()
+    localStorage.setItem("token", "token_" + Date.now())
+    localStorage.setItem("role", role)
+    localStorage.setItem("userEmail", email || "commander@agency.gov")
+
+    if (role === 'admin' || role === 'commander' || role === 'responder') {
+      navigate("/admin")
+    } else {
+      navigate("/")
+    }
   }
 
   return (
     <div className="text-on-surface min-h-screen flex antialiased relative w-full">
       {/* Full-Screen Background Map */}
       <div className="fixed inset-0 z-0">
-        <img 
-          alt="Global Map Intelligence" 
-          className="w-full h-full object-cover" 
-          src={LoginscreenBG} 
+        <img
+          alt="Global Map Intelligence"
+          className="w-full h-full object-cover"
+          src={LoginscreenBG}
         />
       </div>
 
@@ -30,10 +36,10 @@ export const Login = () => {
       <main className="relative z-10 flex w-full min-h-screen flex-col items-center justify-center p-margin-mobile md:p-margin-desktop py-12">
         {/* Glassmorphism Container */}
         <div className="glass-panel w-full max-w-xl rounded-2xl p-margin-mobile md:p-sm flex flex-col gap-md relative backdrop-blur-2xl bg-white/60">
-          
+
           {/* Combined Branding & Header Section */}
           <div className="flex flex-col items-center text-center gap-xs">
-            <div 
+            <div
               className="flex items-center gap-xs cursor-pointer select-none"
               onClick={() => navigate("/")}
             >
@@ -47,7 +53,7 @@ export const Login = () => {
             <h2 className="font-body-lg text-body-md md:text-body-lg max-w-md text-primary-container">
               Empowering first responders with real-time, AI-driven disaster intelligence.
             </h2>
-            
+
             {/* Live Status Indicators */}
             <div className="flex flex-wrap justify-center gap-sm mt-sm">
               <div className="inline-flex items-center gap-sm bg-white/60 backdrop-blur-sm px-sm py-xs rounded-lg border border-white/50">
@@ -87,15 +93,15 @@ export const Login = () => {
                       mail
                     </span>
                   </div>
-                  <input 
-                    className="input-field w-full pl-xl pr-sm py-sm border rounded-lg font-body-md text-body-md text-on-surface placeholder-on-surface-variant focus:ring-0 bg-white/90 border-outline-variant" 
-                    id="email" 
-                    name="email" 
+                  <input
+                    className="input-field w-full pl-xl pr-sm py-sm border rounded-lg font-body-md text-body-md text-on-surface placeholder-on-surface-variant focus:ring-0 bg-white/90 border-outline-variant"
+                    id="email"
+                    name="email"
                     type="email"
-                    placeholder="commander@agency.gov" 
+                    placeholder="commander@agency.gov"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    required 
+                    required
                   />
                 </div>
               </div>
@@ -111,27 +117,52 @@ export const Login = () => {
                       lock
                     </span>
                   </div>
-                  <input 
-                    className="input-field w-full pl-xl pr-sm py-sm border rounded-lg font-body-md text-body-md text-on-surface placeholder-on-surface-variant focus:ring-0 bg-white/90 border-outline-variant" 
-                    id="password" 
-                    name="password" 
+                  <input
+                    className="input-field w-full pl-xl pr-sm py-sm border rounded-lg font-body-md text-body-md text-on-surface placeholder-on-surface-variant focus:ring-0 bg-white/90 border-outline-variant"
+                    id="password"
+                    name="password"
                     type="password"
-                    placeholder="••••••••" 
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required 
+                    required
                   />
+                </div>
+              </div>
+
+              {/* Role Selection */}
+              <div className="space-y-base">
+                <label className="block font-data-label text-data-label text-primary-container" htmlFor="role">
+                  SELECT ROLE
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-sm flex items-center pointer-events-none">
+                    <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '20px' }}>
+                      badge
+                    </span>
+                  </div>
+                  <select
+                    className="input-field w-full pl-xl pr-sm py-sm border rounded-lg font-body-md text-body-md text-on-surface focus:ring-0 bg-white/90 border-outline-variant cursor-pointer"
+                    id="role"
+                    name="role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                  >
+                    <option value="admin">Administrator / Commander (Full Access)</option>
+                    <option value="responder">First Responder (Live Operations)</option>
+                    <option value="user">General Public / Citizen (View Only)</option>
+                  </select>
                 </div>
               </div>
 
               {/* Remember & Forgot */}
               <div className="flex items-center justify-between mt-xs">
                 <div className="flex items-center">
-                  <input 
-                    className="h-4 w-4 rounded border-outline-variant text-primary-container focus:ring-primary-container bg-white/60" 
-                    id="remember-me" 
-                    name="remember-me" 
-                    type="checkbox" 
+                  <input
+                    className="h-4 w-4 rounded border-outline-variant text-primary-container focus:ring-primary-container bg-white/60"
+                    id="remember-me"
+                    name="remember-me"
+                    type="checkbox"
                   />
                   <label className="ml-2 block font-body-sm text-body-sm text-primary-container select-none" htmlFor="remember-me">
                     Remember me
@@ -146,8 +177,8 @@ export const Login = () => {
 
               {/* Actions */}
               <div className="flex flex-col gap-sm">
-                <button 
-                  className="w-full flex justify-center py-sm px-4 border border-transparent rounded-lg shadow-sm font-data-value text-data-value text-on-primary bg-primary-container hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-container transition-colors" 
+                <button
+                  className="w-full flex justify-center py-sm px-4 border border-transparent rounded-lg shadow-sm font-data-value text-data-value text-on-primary bg-primary-container hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-container transition-colors"
                   type="submit"
                 >
                   Sign In
@@ -158,8 +189,8 @@ export const Login = () => {
                   <span className="flex-shrink-0 mx-4 font-data-label text-data-label text-outline">OR</span>
                   <div className="flex-grow border-t border-outline-variant/50"></div>
                 </div>
-                <button 
-                  className="w-full flex justify-center items-center gap-sm py-sm px-4 border border-outline-variant/60 rounded-lg bg-white/40 backdrop-blur-sm font-data-value text-data-value text-on-surface hover:bg-white/70 transition-colors" 
+                <button
+                  className="w-full flex justify-center items-center gap-sm py-sm px-4 border border-outline-variant/60 rounded-lg bg-white/40 backdrop-blur-sm font-data-value text-data-value text-on-surface hover:bg-white/70 transition-colors"
                   type="button"
                   onClick={handleLogin}
                 >
