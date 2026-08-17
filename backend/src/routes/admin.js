@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getDb } from "../config/firebase.js";
 import { COLLECTIONS, ADMIN_ROLES } from "../config/constants.js";
 import { authenticateUser, requireRole } from "../middleware/auth.js";
+import { verifyFirebaseConnection } from "../config/firebase.js";
 import { pipeline } from "../services/processingPipeline.js";
 import admin from "firebase-admin";
 
@@ -100,6 +101,7 @@ router.get("/audit-logs", async (req, res) => {
 router.get("/system-health", async (req, res) => {
   try {
     const pipelineStats = pipeline.getStats();
+    const firebase = await verifyFirebaseConnection();
 
     const services = [
       {
@@ -110,15 +112,15 @@ router.get("/system-health", async (req, res) => {
       },
       {
         service: "Firebase Firestore",
-        status: "Healthy",
-        latency: "< 50ms",
-        details: "Connected",
+        status: firebase.firestore ? "Healthy" : "Blocked",
+        latency: firebase.connected ? "Connected" : "—",
+        details: firebase.error || "Connected",
       },
       {
         service: "Firebase Auth",
-        status: "Healthy",
-        latency: "< 30ms",
-        details: "Token verification active",
+        status: firebase.auth ? "Healthy" : "Blocked",
+        latency: firebase.connected ? "Active" : "—",
+        details: firebase.connected ? "Token verification active" : "Credentials missing",
       },
       {
         service: "AI Classification Engine",

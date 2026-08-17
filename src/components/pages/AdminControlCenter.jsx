@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
-import { listenToUsers, inviteAgencyUser, listenToAuditLogs, API_SERVICES_MONITOR } from '../../services/adminService'
+import { listenToUsers, inviteAgencyUser, listenToAuditLogs, fetchSystemHealth } from '../../services/adminService'
 
 export const AdminControlCenter = () => {
   const [activeTab, setActiveTab] = useState("roles")
   const [users, setUsers] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
+  const [systemHealth, setSystemHealth] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Invite modal state
@@ -22,6 +23,7 @@ export const AdminControlCenter = () => {
       setAuditLogs(a)
       setLoading(false)
     })
+    fetchSystemHealth().then(setSystemHealth)
     return () => {
       unsubUsers()
       unsubAudit()
@@ -165,7 +167,7 @@ export const AdminControlCenter = () => {
             <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
               <h3 className="font-bold text-sm text-[#001d36]">Ingestion Connectors & External API Stream Latencies</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {API_SERVICES_MONITOR.map((api, idx) => (
+                {(systemHealth.length > 0 ? systemHealth : [{ service: "Backend API", status: "Unavailable", latency: "—", details: "Configure Firebase Admin credentials" }]).map((api, idx) => (
                   <div key={idx} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-sm text-[#001d36]">{api.service}</span>
@@ -175,10 +177,10 @@ export const AdminControlCenter = () => {
                         {api.status}
                       </span>
                     </div>
-                    <p className="font-mono text-xs text-[#74777e]">{api.endpoint}</p>
+                    <p className="font-mono text-xs text-[#74777e]">{api.details || api.endpoint || "—"}</p>
                     <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="text-[#74777e]">Stream Latency</span>
-                      <span className="font-mono font-bold text-green-700">{api.latency}</span>
+                      <span className="text-[#74777e]">Status</span>
+                      <span className="font-mono font-bold text-green-700">{api.latency || "—"}</span>
                     </div>
                   </div>
                 ))}

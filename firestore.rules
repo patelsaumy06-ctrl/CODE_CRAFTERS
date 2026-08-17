@@ -7,40 +7,74 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // USERS Collection
-    match /users/{userId} {
-      // Allow read to any authenticated user
-      allow read: if isAuthenticated();
-      // Allow user to manage their own document or admin access
-      allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == "admin@codecrafters.ai");
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "admin@codecrafters.ai" ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["admin", "commander"]);
     }
 
-    // INCIDENTS Collection
+    // USERS Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // INCIDENTS Collection — public read for map/feed; writes via backend preferred
     match /incidents/{incidentId} {
-      // Public read access for disaster intelligence map/feed
       allow read: if true;
-      // Authenticated users can create incidents with their own UID
       allow create: if isAuthenticated() && request.resource.data.createdBy == request.auth.uid;
-      // Authenticated operational users can update/delete incidents
-      allow update, delete: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && isAdmin();
+    }
+
+    // INCIDENT SOURCES — server-side pipeline writes; restricted client access
+    match /incident_sources/{sourceId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // INCIDENT CLUSTERS — server-side only
+    match /incident_clusters/{clusterId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // SENSOR READINGS — server-side ingestion only
+    match /sensor_readings/{readingId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // RESPONSE RECOMMENDATIONS — server-side pipeline writes
+    match /response_recommendations/{recId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // SYSTEM HEALTH — admin read only
+    match /system_health/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ALERTS Collection
     match /alerts/{alertId} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     // INTELLIGENCE Collection
     match /intelligence/{itemId} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
 
     // AUDIT LOGS Collection
     match /audit_logs/{logId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin();
       allow create: if isAuthenticated();
+      allow update, delete: if false;
     }
   }
 }

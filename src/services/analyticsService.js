@@ -1,56 +1,45 @@
-import { collection, getDocs } from "firebase/firestore"
-import { db } from "../firebase/firebase"
+import { api } from "./apiClient"
 
 /**
- * Computes live tactical analytics and KPI metrics from Firestore data
+ * Computes tactical analytics from backend API (replaces direct Firestore reads)
  */
 export const fetchAnalyticsData = async () => {
   try {
-    const snapshot = await getDocs(collection(db, "incidents"))
-    const incidents = snapshot.docs.map(docSnap => docSnap.data())
-
-    const totalIncidents = incidents.length || 1420
-    const verifiedCount = incidents.filter(i => i.verified || i.status === 'verified').length
-    const verifiedRate = incidents.length > 0
-      ? ((verifiedCount / incidents.length) * 100).toFixed(1)
-      : "94.6"
-
-    const categoryCounts = {
-      floods: incidents.filter(i => (i.disasterType || "").toLowerCase().includes("flood")).length,
-      grid: incidents.filter(i => (i.disasterType || "").toLowerCase().includes("grid") || (i.disasterType || "").toLowerCase().includes("structure")).length,
-      wildfire: incidents.filter(i => (i.disasterType || "").toLowerCase().includes("fire")).length,
-      seismic: incidents.filter(i => (i.disasterType || "").toLowerCase().includes("seismic") || (i.disasterType || "").toLowerCase().includes("quake")).length
-    }
+    const [overview, trends, categories, severity] = await Promise.all([
+      api.get("/api/analytics/overview"),
+      api.get("/api/analytics/trends"),
+      api.get("/api/analytics/categories"),
+      api.get("/api/analytics/severity"),
+    ])
 
     return {
-      kpis: [
-        { title: "Avg. AI Verification Time", value: "24.2s", change: "-12% faster", good: true },
-        { title: "Total Incidents Processed", value: totalIncidents.toLocaleString(), change: "+8% volume", good: true },
-        { title: "False Alarm Filter Rate", value: `${verifiedRate}%`, change: "+2.1%", good: true },
-        { title: "Agency Response Latency", value: "3m 40s", change: "-45s faster", good: true },
-      ],
-      timeline: [45, 60, 35, 90, 120, 80, 95, 110, 70, 85, 105, 130],
-      categories: categoryCounts
+      kpis: overview.data?.kpis || [],
+      timeline: trends.data?.timeline || [],
+      categories: categories.data || {},
+      severity: severity.data || {},
+      pipelineStats: overview.data?.pipelineStats || {},
     }
   } catch (error) {
     console.error("Error computing analytics metrics:", error)
     return {
-      kpis: [
-        { title: "Avg. AI Verification Time", value: "24.2s", change: "-12% faster", good: true },
-        { title: "Total Incidents Processed", value: "1,420", change: "+8% volume", good: true },
-        { title: "False Alarm Filter Rate", value: "94.6%", change: "+2.1%", good: true },
-        { title: "Agency Response Latency", value: "3m 40s", change: "-45s faster", good: true },
-      ],
-      timeline: [45, 60, 35, 90, 120, 80, 95, 110, 70, 85, 105, 130],
-      categories: { floods: 44, grid: 28, wildfire: 18, seismic: 10 }
+      kpis: [],
+      timeline: [],
+      categories: {},
+      severity: {},
+      pipelineStats: {},
     }
   }
 }
 
 /**
- * Triggers official PDF report export
+ * Triggers official report export from live analytics data
  */
-export const exportAnalyticsPDF = (timeframe = "7d") => {
+export const exportAnalyticsPDF = async (timeframe = "7d") => {
+  const data = await fetchAnalyticsData()
+  const kpiLines = (data.kpis || [])
+    .map((k) => `- ${k.title}: ${k.value} (${k.change})`)
+    .join("\n")
+
   const content = `
 ========================================================================
                  DISASTERLENS AI - OFFICIAL TACTICAL REPORT
@@ -60,17 +49,12 @@ Generated At: ${new Date().toLocaleString()}
 Classification: UNCLASSIFIED // FOR OFFICIAL AGENCY USE ONLY
 
 1. EXECUTIVE KPI SUMMARY
-- Avg AI Verification Speed: 24.2 seconds
-- Incident Filter Consensus Score: 94.6%
-- Average Emergency Agency Response Latency: 3m 40s
+${kpiLines || "- No live KPI data available"}
 
 2. SPATIOTEMPORAL CLUSTER ANALYSIS
-- Floods & Water Surge: 44%
-- Structural & Power Grid Damage: 28%
-- Wildfires & Extreme Heat: 18%
-- Seismic Activity: 10%
+${Object.entries(data.categories || {}).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- No category data"}
 
-Status: AUDITED AND VERIFIED BY CLOUD FIRESTORE INTEGRATION ENGINE
+Status: GENERATED FROM BACKEND ANALYTICS API
 ========================================================================
   `
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" })

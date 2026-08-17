@@ -1,101 +1,68 @@
 import {
   collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
   query,
   orderBy,
   onSnapshot,
-  serverTimestamp
 } from "firebase/firestore"
-import { db, auth } from "../firebase/firebase"
+import { db } from "../firebase/firebase"
+import { api } from "./apiClient"
 
 const INCIDENTS_COLLECTION = "incidents"
 
 /**
- * Creates a new incident document in Firestore
- * @param {Object} data - Incident data object
+ * Creates a new incident via backend API
  */
 export const createIncident = async (data) => {
-  try {
-    const currentUser = auth.currentUser
-    if (!currentUser) {
-      throw new Error("Authentication required to report an incident.")
-    }
-
-    const payload = {
-      title: data.title || "Untitled Incident",
-      description: data.description || "",
-      disasterType: data.disasterType || "other",
-      severity: data.severity || "medium",
-      status: data.status || "reported",
-      location: {
-        latitude: Number(data.location?.latitude) || 0,
-        longitude: Number(data.location?.longitude) || 0,
-        address: data.location?.address || "Unknown Location"
-      },
-      source: data.source || "User Ingested",
-      sourceUrl: data.sourceUrl || "",
-      reportedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: currentUser.uid,
-      verified: Boolean(data.verified || false)
-    }
-
-    const docRef = await addDoc(collection(db, INCIDENTS_COLLECTION), payload)
-    return { id: docRef.id, ...payload }
-  } catch (error) {
-    console.error("Error in createIncident:", error)
-    throw error
+  const payload = {
+    title: data.title || "Untitled Incident",
+    description: data.description || "",
+    disasterType: data.disasterType || "other",
+    severity: data.severity || "medium",
+    status: data.status || "reported",
+    location: {
+      latitude: Number(data.location?.latitude) || 0,
+      longitude: Number(data.location?.longitude) || 0,
+      address: data.location?.address || "Unknown Location",
+    },
+    source: data.source || "User Ingested",
+    sourceUrl: data.sourceUrl || "",
+    verified: Boolean(data.verified || false),
   }
+
+  const res = await api.post("/api/incidents", payload, { auth: true })
+  return res.data
 }
 
 /**
- * Retrieves all incidents from Firestore, ordered by creation date descending
+ * Retrieves all incidents from backend API
  */
 export const getIncidents = async () => {
-  try {
-    const q = query(
-      collection(db, INCIDENTS_COLLECTION),
-      orderBy("createdAt", "desc")
-    )
-    const snapshot = await getDocs(q)
-    return snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data()
-    }))
-  } catch (error) {
-    console.error("Error in getIncidents:", error)
-    throw error
-  }
+  const res = await api.get("/api/incidents")
+  return res.data || []
 }
 
 /**
- * Attaches a real-time listener to the incidents collection
- * @param {Function} callback - Function called with fresh incident array on updates
- * @returns {Function} Unsubscribe function to terminate listener
+ * Real-time listener — uses Firestore onSnapshot for live UI updates
  */
 export const listenToIncidents = (callback) => {
+  getIncidents()
+    .then(callback)
+    .catch((err) => console.error("Error bootstrapping incidents from API:", err))
+
   try {
-    const q = query(
-      collection(db, INCIDENTS_COLLECTION),
-      orderBy("createdAt", "desc")
-    )
+    const q = query(collection(db, INCIDENTS_COLLECTION), orderBy("createdAt", "desc"))
     return onSnapshot(
       q,
       (snapshot) => {
         const incidents = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }))
-        callback(incidents)
+        if (incidents.length > 0) callback(incidents)
       },
       (error) => {
         console.error("Error in listenToIncidents snapshot:", error)
+        getIncidents().then(callback).catch(() => callback([]))
       }
     )
   } catch (error) {
@@ -105,54 +72,37 @@ export const listenToIncidents = (callback) => {
 }
 
 /**
- * Fetches a single incident by ID
- * @param {string} id - Document ID
+ * Fetches a single incident by ID via backend API
  */
 export const getIncidentById = async (id) => {
   try {
-    const docRef = doc(db, INCIDENTS_COLLECTION, id)
-    const snap = await getDoc(docRef)
-    if (snap.exists()) {
-      return { id: snap.id, ...snap.data() }
-    }
+    const res = await api.get(`/api/incidents/${id}`)
+    return { ...res.data, sources: res.sources, recommendations: res.recommendations }
+  } catch {
     return null
-  } catch (error) {
-    console.error(`Error in getIncidentById (${id}):`, error)
-    throw error
   }
 }
 
 /**
- * Updates an incident document
- * @param {string} id - Document ID
- * @param {Object} data - Properties to update
+ * Updates an incident via backend API
  */
 export const updateIncident = async (id, data) => {
-  try {
-    const docRef = doc(db, INCIDENTS_COLLECTION, id)
-    const payload = {
-      ...data,
-      updatedAt: serverTimestamp()
-    }
-    await updateDoc(docRef, payload)
-    return { id, ...payload }
-  } catch (error) {
-    console.error(`Error in updateIncident (${id}):`, error)
-    throw error
-  }
+  const res = await api.patch(`/api/incidents/${id}`, data, { auth: true })
+  return res.data
 }
 
 /**
- * Deletes an incident document
- * @param {string} id - Document ID
+ * Deletes an incident via backend API (admin/commander only)
  */
 export const deleteIncident = async (id) => {
-  try {
-    const docRef = doc(db, INCIDENTS_COLLECTION, id)
-    await deleteDoc(docRef)
-    return true
-  } catch (error) {
-    console.error(`Error in deleteIncident (${id}):`, error)
-    throw error
-  }
+  await api.delete(`/api/incidents/${id}`, { auth: true })
+  return true
+}
+
+/**
+ * Find nearby incidents via backend geo query
+ */
+export const getNearbyIncidents = async (lat, lon, radiusKm = 25) => {
+  const res = await api.get(`/api/incidents/nearby?lat=${lat}&lon=${lon}&radiusKm=${radiusKm}`)
+  return res.data || []
 }

@@ -1,106 +1,92 @@
 import {
   collection,
-  addDoc,
-  getDocs,
   query,
   orderBy,
   onSnapshot,
-  serverTimestamp
 } from "firebase/firestore"
-import { db, auth } from "../firebase/firebase"
+import { db } from "../firebase/firebase"
+import { api } from "./apiClient"
 
 const ALERTS_COLLECTION = "alerts"
 
-const INITIAL_ALERTS = [
+/** Demo-only seed alerts — marked with isDemo: true */
+export const DEMO_ALERTS = [
   {
-    title: "Sector 4 Emergency Evacuation Order",
-    message: "Immediate evacuation ordered for Sector 4 due to levee breach risk. Proceed to high ground.",
+    title: "[DEMO] Sector 4 Emergency Evacuation Order",
+    message: "Immediate evacuation ordered for Sector 4 due to levee breach risk.",
     target: "All Responders & Local Cell Towers",
     severity: "Critical",
     status: "Broadcasting",
-    createdAt: new Date(Date.now() - 5 * 60 * 1000)
+    isDemo: true,
   },
   {
-    title: "Sub-station B Gas Leak Safety Perimeter",
+    title: "[DEMO] Sub-station B Safety Perimeter",
     message: "Establish 500m perimeter around Sub-station B. Hazmat teams dispatched.",
     target: "Fire & Hazmat Units",
     severity: "High",
     status: "Active",
-    createdAt: new Date(Date.now() - 25 * 60 * 1000)
+    isDemo: true,
   },
-  {
-    title: "Regional Shelter Capacity Update",
-    message: "Shelter #3 reached 90% capacity. Redirecting overflow to Central High Gym.",
-    target: "NGO Coordination Hubs",
-    severity: "Moderate",
-    status: "Completed",
-    createdAt: new Date(Date.now() - 120 * 60 * 1000)
-  }
 ]
 
 /**
- * Creates a new emergency broadcast alert in Firestore
+ * Creates a new emergency broadcast alert via backend API
  */
 export const createAlert = async (alertData) => {
-  try {
-    const currentUser = auth.currentUser
-    const payload = {
-      title: alertData.title || "Emergency Broadcast Alert",
-      message: alertData.message || "",
-      severity: alertData.severity || "Critical",
-      target: alertData.target || "All Sector First Responders",
-      status: alertData.status || "Broadcasting",
-      createdAt: serverTimestamp(),
-      createdBy: currentUser ? currentUser.uid : "system"
-    }
+  const payload = {
+    title: alertData.title || "Emergency Broadcast Alert",
+    message: alertData.message || "",
+    severity: alertData.severity || "Critical",
+    target: alertData.target || "All Sector First Responders",
+    status: alertData.status || "Broadcasting",
+  }
 
-    const docRef = await addDoc(collection(db, ALERTS_COLLECTION), payload)
-    return { id: docRef.id, ...payload }
+  const res = await api.post("/api/alerts", payload, { auth: true })
+  return res.data
+}
+
+/**
+ * Fetch alerts from backend API
+ */
+export const fetchAlerts = async () => {
+  try {
+    const res = await api.get("/api/alerts")
+    return res.data || []
   } catch (error) {
-    console.error("Error creating alert in Firestore:", error)
-    throw error
+    console.warn("Alerts API unavailable:", error.message)
+    return DEMO_ALERTS
   }
 }
 
 /**
- * Attaches a real-time listener to the alerts collection in Firestore
+ * Real-time alerts listener — API bootstrap + Firestore onSnapshot
  */
 export const listenToAlerts = (callback) => {
-  try {
-    const q = query(
-      collection(db, ALERTS_COLLECTION),
-      orderBy("createdAt", "desc")
-    )
+  fetchAlerts().then(callback)
 
+  try {
+    const q = query(collection(db, ALERTS_COLLECTION), orderBy("createdAt", "desc"))
     return onSnapshot(
       q,
-      async (snapshot) => {
-        if (snapshot.empty) {
-          // Seed initial alert data if collection is empty
-          try {
-            for (const item of INITIAL_ALERTS) {
-              await addDoc(collection(db, ALERTS_COLLECTION), {
-                ...item,
-                createdAt: serverTimestamp()
-              })
-            }
-          } catch (e) {
-            console.warn("Could not seed initial alerts:", e)
-          }
-        }
+      (snapshot) => {
         const alerts = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...docSnap.data()
+          ...docSnap.data(),
         }))
-        callback(alerts.length > 0 ? alerts : INITIAL_ALERTS)
+        callback(alerts.length > 0 ? alerts : DEMO_ALERTS)
       },
-      (error) => {
-        console.error("Error in listenToAlerts snapshot:", error)
-        callback(INITIAL_ALERTS)
-      }
+      () => fetchAlerts().then(callback)
     )
   } catch (error) {
     console.error("Error initializing listenToAlerts:", error)
     return () => {}
   }
+}
+
+/**
+ * Update alert status via backend API
+ */
+export const updateAlert = async (id, data) => {
+  const res = await api.patch(`/api/alerts/${id}`, data, { auth: true })
+  return res.data
 }

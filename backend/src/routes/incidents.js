@@ -55,6 +55,60 @@ router.get("/", optionalAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/incidents/nearby — Find incidents near a geographic point
+ */
+router.get("/nearby", optionalAuth, async (req, res) => {
+  try {
+    const db = getDb();
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const radiusKm = parseFloat(req.query.radiusKm) || 25;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      return res.status(400).json({
+        error: "INVALID_COORDINATES",
+        message: "Query params lat and lon are required.",
+      });
+    }
+
+    const snapshot = await db.collection(COLLECTIONS.INCIDENTS).limit(500).get();
+    const incidents = snapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .map((inc) => ({
+        ...inc,
+        distanceKm: haversineKm(
+          lat,
+          lon,
+          inc.location?.latitude || 0,
+          inc.location?.longitude || 0
+        ),
+      }))
+      .filter((inc) => inc.distanceKm <= radiusKm)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, limit);
+
+    res.json({
+      data: incidents,
+      meta: { count: incidents.length, lat, lon, radiusKm },
+    });
+  } catch (error) {
+    console.error("[Incidents GET/nearby] Error:", error.message);
+    res.status(500).json({ error: "FETCH_FAILED", message: error.message });
+  }
+});
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
  * GET /api/incidents/:id — Get single incident with sources and recommendations
  */
 router.get("/:id", optionalAuth, async (req, res) => {

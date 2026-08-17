@@ -37,8 +37,6 @@ export const AuthProvider = ({ children }) => {
             if (profile.status === "active") {
               setCurrentUser(user)
               setUserProfile(profile)
-              localStorage.setItem("token", user.accessToken || "token_" + user.uid)
-              localStorage.setItem("role", profile.role || "user")
               localStorage.setItem("userEmail", user.email || "")
             } else {
               console.warn("User account is inactive. Signing out.")
@@ -60,8 +58,6 @@ export const AuthProvider = ({ children }) => {
       } else {
         setCurrentUser(null)
         setUserProfile(null)
-        localStorage.removeItem("token")
-        localStorage.removeItem("role")
         localStorage.removeItem("userEmail")
       }
       setLoading(false)
@@ -78,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userProfile,
-    userRole: userProfile?.role || localStorage.getItem("role") || "public",
+    userRole: userProfile?.role || "public",
     loading,
     logout
   }

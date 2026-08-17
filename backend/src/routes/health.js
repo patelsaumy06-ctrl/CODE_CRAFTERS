@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { pipeline } from "../services/processingPipeline.js";
+import { verifyFirebaseConnection, getCredentialMode, isFirebaseConfigured } from "../config/firebase.js";
 
 const router = Router();
 
@@ -8,13 +9,22 @@ const router = Router();
  */
 router.get("/", async (req, res) => {
   const pipelineStats = pipeline.getStats();
+  const firebase = await verifyFirebaseConnection();
 
   res.json({
-    status: "ok",
+    status: firebase.connected ? "ok" : "degraded",
     service: "DisasterLens AI Backend",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
     uptime: `${Math.floor(process.uptime())}s`,
+    firebase: {
+      configured: isFirebaseConfigured(),
+      credentialMode: getCredentialMode(),
+      connected: firebase.connected,
+      firestore: firebase.firestore,
+      auth: firebase.auth,
+      error: firebase.error,
+    },
     pipeline: {
       processed: pipelineStats.processed,
       errors: pipelineStats.errors,
