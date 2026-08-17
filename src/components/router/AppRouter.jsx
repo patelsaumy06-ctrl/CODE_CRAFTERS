@@ -60,6 +60,14 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/admin/incident/:id",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+        <LiveIncident />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/admin/analytics",
     element: (
       <ProtectedRoute allowedRoles={["admin", "commander"]}>

@@ -1,23 +1,54 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
+import { listenToUsers, inviteAgencyUser, listenToAuditLogs, API_SERVICES_MONITOR } from '../../services/adminService'
 
 export const AdminControlCenter = () => {
   const [activeTab, setActiveTab] = useState("roles")
+  const [users, setUsers] = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const users = [
-    { name: "Sarah Connor", email: "s.connor@agency.gov", role: "Commander", status: "Active", lastLogin: "10m ago" },
-    { name: "Marcus Wright", email: "m.wright@agency.gov", role: "First Responder", status: "Active", lastLogin: "1h ago" },
-    { name: "Elena Rostova", email: "e.rostova@agency.gov", role: "System Admin", status: "Active", lastLogin: "Just now" },
-    { name: "David Kim", email: "d.kim@agency.gov", role: "Data Analyst", status: "Inactive", lastLogin: "2 days ago" },
-  ]
+  // Invite modal state
+  const [isInviteOpen, setIsInviteOpen] = useState(false)
+  const [inviteName, setInviteName] = useState("")
+  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteRole, setInviteRole] = useState("responder")
+  const [inviting, setInviting] = useState(false)
 
-  const apiServices = [
-    { service: "USGS Seismic Stream", endpoint: "api.usgs.gov/v1/earthquakes", status: "Healthy", latency: "42ms" },
-    { service: "NOAA Weather Radar", endpoint: "api.weather.gov/alerts", status: "Healthy", latency: "88ms" },
-    { service: "X/Twitter Crisis Stream", endpoint: "api.x.com/2/tweets/search/stream", status: "Degraded", latency: "310ms" },
-    { service: "Copernicus Satellite SAR", endpoint: "sentinel.copernicus.eu/api", status: "Healthy", latency: "120ms" },
-  ]
+  useEffect(() => {
+    const unsubUsers = listenToUsers((u) => setUsers(u))
+    const unsubAudit = listenToAuditLogs((a) => {
+      setAuditLogs(a)
+      setLoading(false)
+    })
+    return () => {
+      unsubUsers()
+      unsubAudit()
+    }
+  }, [])
+
+  const handleInviteSubmit = async (e) => {
+    e.preventDefault()
+    if (!inviteEmail) return
+    setInviting(true)
+    try {
+      await inviteAgencyUser({
+        name: inviteName || "Officer",
+        email: inviteEmail,
+        role: inviteRole
+      })
+      alert(`User ${inviteEmail} invited as ${inviteRole} and registered in Firestore!`)
+      setIsInviteOpen(false)
+      setInviteName("")
+      setInviteEmail("")
+    } catch (e) {
+      console.error("Error inviting user:", e)
+      alert("Failed to invite user: " + e.message)
+    } finally {
+      setInviting(false)
+    }
+  }
 
   return (
     <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
@@ -49,7 +80,7 @@ export const AdminControlCenter = () => {
           <div className="flex border-b border-[#E7DED2] gap-6">
             <button
               onClick={() => setActiveTab("roles")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === "roles"
                   ? "border-[#D98B3A] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
@@ -59,7 +90,7 @@ export const AdminControlCenter = () => {
             </button>
             <button
               onClick={() => setActiveTab("apis")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === "apis"
                   ? "border-[#D98B3A] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
@@ -69,7 +100,7 @@ export const AdminControlCenter = () => {
             </button>
             <button
               onClick={() => setActiveTab("audit")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === "audit"
                   ? "border-[#D98B3A] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
@@ -83,8 +114,11 @@ export const AdminControlCenter = () => {
           {activeTab === "roles" && (
             <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="font-bold text-sm text-[#001d36]">Active Agency Accounts</h3>
-                <button className="bg-[#001d36] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#17324d] transition-colors flex items-center gap-1.5">
+                <h3 className="font-bold text-sm text-[#001d36]">Active Agency Accounts (Firestore Stream)</h3>
+                <button 
+                  onClick={() => setIsInviteOpen(true)}
+                  className="bg-[#001d36] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#17324d] transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
                   <span className="material-symbols-outlined text-sm">person_add</span>
                   Invite Agency User
                 </button>
@@ -99,30 +133,26 @@ export const AdminControlCenter = () => {
                       <th className="p-3">Role</th>
                       <th className="p-3">Status</th>
                       <th className="p-3">Last Active</th>
-                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E7DED2]">
-                    {users.map((u, i) => (
-                      <tr key={i} className="hover:bg-[#F7F3EC]/50 transition-colors">
-                        <td className="p-3 font-bold text-[#001d36]">{u.name}</td>
-                        <td className="p-3 text-[#74777e] font-mono">{u.email}</td>
+                    {users.map((u) => (
+                      <tr key={u.id || u.email} className="hover:bg-[#F7F3EC]/50">
+                        <td className="p-3 font-bold text-[#001d36]">{u.name || "Agency User"}</td>
+                        <td className="p-3 font-mono text-[#74777e]">{u.email}</td>
                         <td className="p-3">
-                          <span className="bg-[#001d36]/10 text-[#001d36] px-2 py-0.5 rounded font-bold">
+                          <span className="bg-[#001d36] text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">
                             {u.role}
                           </span>
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            u.status === "Active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            u.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
                           }`}>
-                            {u.status}
+                            {u.status || "Active"}
                           </span>
                         </td>
-                        <td className="p-3 text-[#74777e]">{u.lastLogin}</td>
-                        <td className="p-3 text-right">
-                          <button className="text-[#D98B3A] font-bold hover:underline">Edit Permissions</button>
-                        </td>
+                        <td className="p-3 font-mono text-[#74777e]">{u.lastLogin || "Recently"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -133,30 +163,22 @@ export const AdminControlCenter = () => {
 
           {activeTab === "apis" && (
             <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-bold text-sm text-[#001d36]">Ingestion Data Sources</h3>
-                <button className="bg-[#D98B3A] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-opacity-90 transition-opacity">
-                  + Add Data Connector
-                </button>
-              </div>
-
+              <h3 className="font-bold text-sm text-[#001d36]">Ingestion Connectors & External API Stream Latencies</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {apiServices.map((api, idx) => (
-                  <div key={idx} className="p-4 border border-[#E7DED2] rounded-lg bg-white flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-sm text-[#001d36]">{api.service}</h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          api.status === "Healthy" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
-                        }`}>
-                          {api.status}
-                        </span>
-                      </div>
-                      <p className="text-xs font-mono text-[#74777e]">{api.endpoint}</p>
+                {API_SERVICES_MONITOR.map((api, idx) => (
+                  <div key={idx} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-sm text-[#001d36]">{api.service}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        api.status === "Healthy" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {api.status}
+                      </span>
                     </div>
-                    <div className="mt-4 pt-2 border-t border-slate-100 flex justify-between items-center text-xs text-[#74777e]">
-                      <span>Latency: <strong className="text-[#001d36] font-mono">{api.latency}</strong></span>
-                      <button className="text-[#001d36] font-bold hover:underline">Configure Key</button>
+                    <p className="font-mono text-xs text-[#74777e]">{api.endpoint}</p>
+                    <div className="flex justify-between items-center text-xs pt-1">
+                      <span className="text-[#74777e]">Stream Latency</span>
+                      <span className="font-mono font-bold text-green-700">{api.latency}</span>
                     </div>
                   </div>
                 ))}
@@ -165,18 +187,107 @@ export const AdminControlCenter = () => {
           )}
 
           {activeTab === "audit" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-3">
-              <h3 className="font-bold text-sm text-[#001d36]">System Event Log</h3>
-              <div className="font-mono text-xs space-y-2 bg-[#121d27] text-slate-200 p-4 rounded-lg">
-                <div>[2026-08-15 22:50:12] AUTH_SUCCESS: User s.connor@agency.gov logged in from IP 192.168.1.45</div>
-                <div>[2026-08-15 22:48:00] PIPELINE_INGEST: Processed 42,000 tweets from X API stream</div>
-                <div>[2026-08-15 22:42:15] CLUSTER_TRIGGER: AI Model updated incident INC-9042 confidence to 94%</div>
-                <div>[2026-08-15 22:30:00] SYSTEM_CHECK: Automated health check passed across all 12 microservices</div>
+            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
+              <h3 className="font-bold text-sm text-[#001d36]">Immutable Security Audit Logs (Cloud Firestore)</h3>
+              <div className="space-y-2">
+                {auditLogs.map((log) => (
+                  <div key={log.id || log.action} className="p-3 border border-[#E7DED2] rounded-lg bg-white flex flex-wrap items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-[#D98B3A]">{log.action}</span>
+                      <span className="text-[#74777e]">{log.details || log.user}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[10px] text-[#74777e]">{log.ip || "192.168.1.1"}</span>
+                      <span className="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                        {log.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </main>
       </div>
+
+      {/* Invite User Modal */}
+      {isInviteOpen && (
+        <div className="fixed inset-0 z-50 bg-[#001d36]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E7DED2] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-3">
+              <h3 className="font-bold text-base text-[#001d36] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#D98B3A]">person_add</span>
+                Invite Agency Officer
+              </h3>
+              <button onClick={() => setIsInviteOpen(false)} className="text-[#74777e] hover:text-[#001d36]">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
+                  Full Name
+                </label>
+                <input 
+                  type="text"
+                  placeholder="Officer J. Miller"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
+                  Official Email Address
+                </label>
+                <input 
+                  type="email"
+                  placeholder="j.miller@agency.gov"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
+                  Assigned Agency Role
+                </label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A] cursor-pointer"
+                >
+                  <option value="responder">First Responder</option>
+                  <option value="commander">Commander / Admin</option>
+                  <option value="user">Public / Citizen</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviting}
+                  className="px-4 py-2 bg-[#001d36] text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] disabled:opacity-50"
+                >
+                  {inviting ? "Inviting..." : "Send Invitation"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

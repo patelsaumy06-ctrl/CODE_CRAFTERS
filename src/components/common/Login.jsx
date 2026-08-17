@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signInWithEmailAndPassword } from "firebase/auth"
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from "firebase/firestore"
 import { auth, db } from "../../firebase/firebase"
 import LoginscreenBG from '../../assets/LoginscreenBg.png'
 
@@ -87,6 +87,43 @@ export const Login = () => {
       } else if (error.code === "permission-denied") {
         alert("Permission denied accessing Firestore. Please publish rules in Firebase Console.")
       }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    setLoading(true)
+    try {
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+
+      const userRef = doc(db, "users", user.uid)
+      const userSnap = await getDoc(userRef)
+
+      let assignedRole = role || "responder"
+      if (userSnap.exists()) {
+        assignedRole = userSnap.data().role || assignedRole
+      } else {
+        await setDoc(userRef, {
+          uid: user.uid,
+          name: user.displayName || "Google User",
+          email: user.email,
+          role: assignedRole,
+          status: "active",
+          createdAt: serverTimestamp()
+        })
+      }
+
+      localStorage.setItem("token", user.accessToken || "token_" + user.uid)
+      localStorage.setItem("role", assignedRole)
+      localStorage.setItem("userEmail", user.email)
+
+      navigate("/admin")
+    } catch (error) {
+      console.error("Google Auth error:", error)
+      alert("Google sign in failed: " + (error.message || "Unknown error"))
     } finally {
       setLoading(false)
     }
@@ -262,7 +299,8 @@ export const Login = () => {
                   <div className="flex-grow border-t border-outline-variant/50"></div>
                 </div>
                 <button
-                  className="w-full flex justify-center items-center gap-sm py-sm px-4 border border-outline-variant/60 rounded-lg bg-white/40 backdrop-blur-sm font-data-value text-data-value text-on-surface hover:bg-white/70 transition-colors"
+                  onClick={handleGoogleLogin}
+                  className="w-full flex justify-center items-center gap-sm py-sm px-4 border border-outline-variant/60 rounded-lg bg-white/40 backdrop-blur-sm font-data-value text-data-value text-on-surface hover:bg-white/70 transition-colors cursor-pointer"
                   type="button"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -273,6 +311,19 @@ export const Login = () => {
                   </svg>
                   Continue with Google / SSO
                 </button>
+
+                <div className="text-center pt-2">
+                  <span className="font-body-sm text-body-sm text-primary-container">
+                    Need an official agency account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/signup")}
+                      className="font-bold text-[#D98B3A] hover:underline"
+                    >
+                      Register Officer Account
+                    </button>
+                  </span>
+                </div>
               </div>
             </form>
           </div>

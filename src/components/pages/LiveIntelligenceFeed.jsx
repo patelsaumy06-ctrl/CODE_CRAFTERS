@@ -1,45 +1,55 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
+import { listenToIntelligenceFeed, createIntelligenceItem } from '../../services/intelligenceService'
 
 export const LiveIntelligenceFeed = () => {
   const [filterSource, setFilterSource] = useState("All")
+  const [feedItems, setFeedItems] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const feedItems = [
-    {
-      id: "FEED-1029",
-      source: "X/Twitter Stream",
-      handle: "@city_resident",
-      text: "Water level rising fast near 4th street bridge! Roads completely impassable. Stay clear!",
-      time: "Just now",
-      urgency: "High",
-      sentiment: "Panic / Crisis",
-      media: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=400",
-      confidence: 91
-    },
-    {
-      id: "FEED-1028",
-      source: "NOAA Sensor API",
-      handle: "Station #402",
-      text: "Telemetry spike: Water Gauge reading +2.4 meters above normal baseline.",
-      time: "2m ago",
-      urgency: "Critical",
-      sentiment: "Sensor Trigger",
-      media: null,
-      confidence: 99
-    },
-    {
-      id: "FEED-1025",
-      source: "Citizen Report App",
-      handle: "Anonymous User #88",
-      text: "Sparking electric pole near flooded sub-station B. Power cut across 2 blocks.",
-      time: "5m ago",
-      urgency: "Moderate",
-      sentiment: "Infrastructure Hazard",
-      media: "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&q=80&w=400",
-      confidence: 84
+  // Report Ingestion state
+  const [newText, setNewText] = useState('')
+  const [newSource, setNewSource] = useState('Citizen Stream')
+  const [posting, setPosting] = useState(false)
+
+  useEffect(() => {
+    const unsubscribe = listenToIntelligenceFeed((data) => {
+      setFeedItems(data)
+      setLoading(false)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  const handlePostReport = async (e) => {
+    e.preventDefault()
+    if (!newText.trim()) return
+    setPosting(true)
+    try {
+      await createIntelligenceItem({
+        source: newSource,
+        handle: "@field_observer",
+        text: newText,
+        urgency: "High",
+        sentiment: "Citizen Incident Ingest",
+        confidence: 92
+      })
+      setNewText('')
+      alert("Telemetry post successfully ingested into Firestore stream!")
+    } catch (e) {
+      console.error("Error posting intelligence item:", e)
+      alert("Failed to post telemetry item to Firestore.")
+    } finally {
+      setPosting(false)
     }
-  ]
+  }
+
+  const filteredItems = feedItems.filter(item => {
+    if (filterSource === "All") return true
+    if (filterSource === "Social") return item.source.toLowerCase().includes("twitter") || item.source.toLowerCase().includes("social") || item.source.toLowerCase().includes("citizen")
+    if (filterSource === "Sensors") return item.source.toLowerCase().includes("sensor") || item.source.toLowerCase().includes("noaa") || item.source.toLowerCase().includes("telemetry")
+    return true
+  })
 
   return (
     <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
@@ -50,25 +60,59 @@ export const LiveIntelligenceFeed = () => {
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* Source Filter */}
+          {/* Rapid Field Ingest Bar */}
+          <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-4 shadow-sm space-y-3">
+            <h3 className="font-bold text-xs text-[#001d36] uppercase tracking-wider flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#D98B3A] text-base">rss_feed</span>
+              Ingest Live Ground Intelligence to Firestore
+            </h3>
+            <form onSubmit={handlePostReport} className="flex gap-3 flex-wrap">
+              <input
+                type="text"
+                value={newText}
+                onChange={(e) => setNewText(e.target.value)}
+                placeholder="Type real-time field observation or telemetry alert e.g. 'Substation power grid fault in Sector 2'..."
+                className="flex-1 min-w-[280px] bg-white border border-[#E7DED2] rounded-lg px-3 py-2 text-xs text-[#001d36] focus:outline-none focus:border-[#D98B3A]"
+                required
+              />
+              <select
+                value={newSource}
+                onChange={(e) => setNewSource(e.target.value)}
+                className="bg-white border border-[#E7DED2] rounded-lg px-3 py-2 text-xs text-[#001d36] cursor-pointer"
+              >
+                <option value="Citizen Stream">Citizen Stream</option>
+                <option value="IoT Hydrological Sensor">IoT Sensor</option>
+                <option value="Drone Recon Stream">Drone Recon</option>
+              </select>
+              <button
+                type="submit"
+                disabled={posting}
+                className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {posting ? "Ingesting..." : "Publish to Feed"}
+              </button>
+            </form>
+          </div>
+
+          {/* Source Filter Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase text-[#74777e]">Filter Source:</span>
               <button 
                 onClick={() => setFilterSource("All")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg ${filterSource === "All" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "All" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
               >
                 All Sources
               </button>
               <button 
                 onClick={() => setFilterSource("Social")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg ${filterSource === "Social" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "Social" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
               >
                 Social Media Streams
               </button>
               <button 
                 onClick={() => setFilterSource("Sensors")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg ${filterSource === "Sensors" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "Sensors" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
               >
                 IoT Sensors & Telemetry
               </button>
@@ -76,14 +120,14 @@ export const LiveIntelligenceFeed = () => {
 
             <div className="flex items-center gap-2 text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-full">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              INGEST STREAM: 120 items/min
+              FIRESTORE STREAM: ACTIVE ({feedItems.length} items)
             </div>
           </div>
 
           {/* Feed Cards */}
           <div className="space-y-4 max-w-4xl">
-            {feedItems.map((item) => (
-              <div key={item.id} className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow space-y-3">
+            {filteredItems.map((item) => (
+              <div key={item.id || item.text} className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="bg-[#001d36] text-white text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold">
@@ -91,7 +135,9 @@ export const LiveIntelligenceFeed = () => {
                     </span>
                     <span className="text-xs font-bold text-[#001d36]">{item.handle}</span>
                   </div>
-                  <span className="text-xs font-mono text-[#74777e]">{item.time}</span>
+                  <span className="text-xs font-mono text-[#74777e]">
+                    {item.createdAt ? "Live Stream" : "Just now"}
+                  </span>
                 </div>
 
                 <p className="text-xs text-[#1c1c18] font-medium leading-relaxed">

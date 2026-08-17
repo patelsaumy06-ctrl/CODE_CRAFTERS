@@ -24,5 +24,23 @@ service cloud.firestore {
       // Authenticated operational users can update/delete incidents
       allow update, delete: if isAuthenticated();
     }
+
+    // ALERTS Collection
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // INTELLIGENCE Collection
+    match /intelligence/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // AUDIT LOGS Collection
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
   }
 }

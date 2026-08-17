@@ -1,0 +1,22 @@
+{
+  "name": "disasterlens-backend",
+  "version": "1.0.0",
+  "description": "DisasterLens AI Backend — SIH PS-SW-005 Multi-Source Disaster Intelligence Server",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "demo": "node src/workers/demoRunner.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.4.0",
+    "helmet": "^8.1.0",
+    "uuid": "^11.1.0"
+  }
+}

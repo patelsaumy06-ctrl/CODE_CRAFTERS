@@ -1,11 +1,51 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
+import { getIncidentById, listenToIncidents, updateIncident } from '../../services/incidentService'
 
 export const LiveIncident = () => {
   const navigate = useNavigate()
+  const { id } = useParams()
   const [activeTab, setActiveTab] = useState("overview")
+  const [incident, setIncident] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let unsubscribe = () => {}
+    if (id) {
+      getIncidentById(id).then((docData) => {
+        if (docData) {
+          setIncident(docData)
+        }
+        setLoading(false)
+      }).catch(err => {
+        console.error("Error fetching incident by ID:", err)
+        setLoading(false)
+      })
+    } else {
+      unsubscribe = listenToIncidents((incidents) => {
+        if (incidents && incidents.length > 0) {
+          setIncident(incidents[0])
+        }
+        setLoading(false)
+      })
+    }
+    return () => unsubscribe()
+  }, [id])
+
+  const handleToggleVerify = async () => {
+    if (!incident || !incident.id) return
+    const newVerified = !incident.verified
+    try {
+      await updateIncident(incident.id, { verified: newVerified, status: newVerified ? "verified" : "investigating" })
+      setIncident(prev => ({ ...prev, verified: newVerified, status: newVerified ? "verified" : "investigating" }))
+      alert(`Incident status updated to ${newVerified ? "VERIFIED" : "INVESTIGATING"} in Firestore!`)
+    } catch (e) {
+      console.error("Error updating incident status:", e)
+      alert("Failed to update incident in Firestore.")
+    }
+  }
 
   const mediaItems = [
     { title: "Bridge Sensor Gauge Reading", type: "Telemetry", time: "3m ago", img: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=400" },
@@ -19,6 +59,12 @@ export const LiveIncident = () => {
     { time: "22:48:30", text: "Incident severity upgraded to CRITICAL by AI Consensus Algorithm." },
     { time: "22:50:00", text: "Automated broadcast dispatched to Sector 4 Emergency First Responders." },
   ]
+
+  const incTitle = incident?.title || "Flash Flood & Levee Breach Warning"
+  const incSeverity = incident?.severity || "critical"
+  const incLocation = incident?.location?.address || "Northern River Basin (Sector 4)"
+  const incDesc = incident?.description || "Detected via multi-source sensor arrays, Satellite SAR imagery, and high-density local social reports."
+  const isVerified = incident?.verified || false
 
   return (
     <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
@@ -34,24 +80,34 @@ export const LiveIncident = () => {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="bg-red-100 text-red-800 border border-red-200 text-xs px-2.5 py-0.5 rounded font-bold uppercase">
-                  INCIDENT #INC-9042 • CRITICAL
+                  INCIDENT #{incident?.id ? incident.id.slice(0, 8).toUpperCase() : "INC-9042"} • {incSeverity.toUpperCase()}
                 </span>
-                <span className="text-xs text-[#74777e] font-mono">Location: Northern River Basin (Sector 4)</span>
+                <span className="text-xs text-[#74777e] font-mono">Location: {incLocation}</span>
               </div>
-              <h2 className="text-2xl font-bold text-[#001d36]">Flash Flood & Levee Breach Warning</h2>
-              <p className="text-xs text-[#74777e] mt-1">
-                Detected via multi-source sensor arrays, Satellite SAR imagery, and high-density local social reports.
-              </p>
+              <h2 className="text-2xl font-bold text-[#001d36]">{incTitle}</h2>
+              <p className="text-xs text-[#74777e] mt-1">{incDesc}</p>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <div className="text-xs text-[#74777e]">AI Confidence Score</div>
-                <div className="text-xl font-bold text-green-700 font-mono">94.8% Verified</div>
+                <div className="text-xl font-bold text-green-700 font-mono">
+                  {isVerified ? "99.2% Confirmed" : "94.8% Verified"}
+                </div>
               </div>
+
+              <button 
+                onClick={handleToggleVerify}
+                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors border ${
+                  isVerified ? "bg-green-100 text-green-800 border-green-300 hover:bg-green-200" : "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
+                }`}
+              >
+                {isVerified ? "✓ Verified Event" : "Verify Ground Truth"}
+              </button>
+
               <button 
                 onClick={() => navigate("/admin/notifications")}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-sm flex items-center gap-1.5"
+                className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-sm">campaign</span>
                 Issue Broadcast Alert
@@ -63,7 +119,7 @@ export const LiveIncident = () => {
           <div className="flex border-b border-[#E7DED2] gap-6">
             <button
               onClick={() => setActiveTab("overview")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === "overview"
                   ? "border-[#D98B3A] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
@@ -73,7 +129,7 @@ export const LiveIncident = () => {
             </button>
             <button
               onClick={() => setActiveTab("timeline")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === "timeline"
                   ? "border-[#D98B3A] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
@@ -99,99 +155,78 @@ export const LiveIncident = () => {
                       <div key={idx} className="border border-[#E7DED2] rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
                         <img alt={m.title} src={m.img} className="w-full h-32 object-cover" />
                         <div className="p-3">
-                          <div className="flex items-center justify-between text-[10px] text-[#74777e] mb-1">
-                            <span className="font-bold text-[#001d36] uppercase">{m.type}</span>
-                            <span className="font-mono">{m.time}</span>
-                          </div>
-                          <h4 className="font-bold text-xs text-[#001d36] leading-snug">{m.title}</h4>
+                          <span className="bg-slate-100 text-[#001d36] text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                            {m.type}
+                          </span>
+                          <h4 className="font-bold text-xs text-[#001d36] mt-2 truncate">{m.title}</h4>
+                          <span className="text-[10px] text-[#74777e]">{m.time}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Tactical Map Focus */}
                 <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm space-y-3">
                   <h3 className="font-bold text-sm text-[#001d36] flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#D98B3A]">my_location</span>
-                    High-Resolution Sector Telemetry
+                    <span className="material-symbols-outlined text-[#D98B3A]">analytics</span>
+                    Multi-Source Sensor AI Consensus Breakdown
                   </h3>
-                  <div className="h-64 rounded-lg bg-[#121d27] relative overflow-hidden flex items-center justify-center">
-                    <img 
-                      alt="Satellite Focal Area"
-                      src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&q=80&w=800"
-                      className="absolute inset-0 w-full h-full object-cover opacity-70"
-                    />
-                    <div className="absolute inset-0 bg-red-500/10 pointer-events-none"></div>
-                    <div className="relative z-10 bg-[#001d36]/90 border border-white/20 p-3 rounded-lg text-white text-xs font-mono">
-                      <div>FLOOD IMPACT ZONE: 4.2 km²</div>
-                      <div className="text-red-400">ESTIMATED EVACUATION POPULATION: 1,400</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: AI Analysis */}
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm space-y-4">
-                  <h3 className="font-bold text-sm text-[#001d36]">AI Risk Assessment</h3>
-                  
-                  <div className="space-y-3">
+                  <div className="space-y-3 text-xs">
                     <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span>Hydrological Risk</span>
-                        <span className="text-red-600">High (92%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-red-600 h-full w-[92%]"></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span>Structural Infrastructure Risk</span>
-                        <span className="text-orange-500">Critical (85%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-orange-500 h-full w-[85%]"></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span>Source Consensus Rate</span>
-                        <span className="text-green-600">Strong (98%)</span>
+                      <div className="flex justify-between font-semibold mb-1">
+                        <span>Hydrological Telemetry Sensor Consensus</span>
+                        <span className="font-mono text-green-700 font-bold">98.2%</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-green-600 h-full w-[98%]"></div>
                       </div>
                     </div>
+                    <div>
+                      <div className="flex justify-between font-semibold mb-1">
+                        <span>Social Stream Sentiment NLP Agreement</span>
+                        <span className="font-mono text-green-700 font-bold">91.4%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-[#001d36] h-full w-[91%]"></div>
+                      </div>
+                    </div>
                   </div>
+                </div>
+              </div>
 
-                  <div className="pt-4 border-t border-[#E7DED2]">
-                    <h4 className="font-bold text-xs text-[#001d36] mb-2">Recommended Response Actions:</h4>
-                    <ul className="text-xs text-[#1c1c18] space-y-2">
-                      <li className="flex items-start gap-2">
-                        <span className="material-symbols-outlined text-green-600 text-sm">check_circle</span>
-                        Deploy regional water rescue teams to Sector 4.
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="material-symbols-outlined text-green-600 text-sm">check_circle</span>
-                        Issue emergency SMS broadcast to local cell towers.
-                      </li>
-                    </ul>
+              {/* Right Column: Tactical Action Panel */}
+              <div className="lg:col-span-4 space-y-6">
+                <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm space-y-4">
+                  <h3 className="font-bold text-sm text-[#001d36] flex items-center gap-2">
+                    <span className="material-symbols-outlined text-red-600">health_and_safety</span>
+                    Recommended Tactical Actions
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs space-y-1">
+                      <span className="font-bold text-red-800 uppercase text-[10px]">Priority 1</span>
+                      <p className="font-semibold text-[#001d36]">Dispatch Water Rescue Squad 4</p>
+                      <p className="text-[11px] text-[#74777e]">Deploy boat teams to Northern Basin sector bridge.</p>
+                    </div>
+
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1">
+                      <span className="font-bold text-amber-800 uppercase text-[10px]">Priority 2</span>
+                      <p className="font-semibold text-[#001d36]">Activate Reverse 911 Geofence</p>
+                      <p className="text-[11px] text-[#74777e]">Send emergency SMS alert to residents within 2.5km radius.</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#001d36]">Detailed Event Log</h3>
-              <div className="space-y-4">
-                {timelineEvents.map((t, idx) => (
-                  <div key={idx} className="flex gap-4 items-start border-l-2 border-[#D98B3A] pl-4">
-                    <span className="font-mono text-xs font-bold text-[#D98B3A] shrink-0">{t.time}</span>
-                    <p className="text-xs text-[#1c1c18]">{t.text}</p>
+            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-6 max-w-4xl">
+              <h3 className="font-bold text-sm text-[#001d36]">AI Ground-Truth Verification Log</h3>
+              <div className="relative pl-6 border-l-2 border-[#D98B3A] space-y-6">
+                {timelineEvents.map((ev, idx) => (
+                  <div key={idx} className="relative">
+                    <div className="absolute -left-[31px] top-0 w-4 h-4 rounded-full bg-[#001d36] border-2 border-white"></div>
+                    <span className="font-mono text-xs text-[#D98B3A] font-bold">{ev.time}</span>
+                    <p className="text-xs text-[#001d36] font-medium mt-0.5">{ev.text}</p>
                   </div>
                 ))}
               </div>
