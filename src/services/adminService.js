@@ -1,15 +1,4 @@
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore"
-import { db } from "../firebase/firebase"
 import { api } from "./apiClient"
-
-const USERS_COLLECTION = "users"
-const AUDIT_COLLECTION = "audit_logs"
 
 /** Demo-only seed data — never presented as production records */
 export const DEMO_USERS = [
@@ -63,26 +52,27 @@ export const fetchSystemHealth = async () => {
 }
 
 /**
- * Real-time user listener — falls back to API poll when Firestore empty
+ * Real-time user listener via Express REST API polling
  */
 export const listenToUsers = (callback) => {
-  fetchUsers().then(callback)
+  let isSubscribed = true
 
-  try {
-    return onSnapshot(
-      collection(db, USERS_COLLECTION),
-      (snapshot) => {
-        const users = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        callback(users.length > 0 ? users : DEMO_USERS)
-      },
-      () => fetchUsers().then(callback)
-    )
-  } catch (error) {
-    console.error("Error initializing listenToUsers:", error)
-    return () => {}
+  const fetchAndNotify = () => {
+    fetchUsers()
+      .then((users) => {
+        if (isSubscribed) callback(users.length > 0 ? users : DEMO_USERS)
+      })
+      .catch(() => {
+        if (isSubscribed) callback(DEMO_USERS)
+      })
+  }
+
+  fetchAndNotify()
+  const intervalId = setInterval(fetchAndNotify, 5000)
+
+  return () => {
+    isSubscribed = false
+    clearInterval(intervalId)
   }
 }
 
@@ -110,27 +100,27 @@ export const changeUserRole = async (userId, role) => {
 }
 
 /**
- * Real-time audit log listener with API bootstrap
+ * Real-time audit log listener via Express REST API polling
  */
 export const listenToAuditLogs = (callback) => {
-  fetchAuditLogs().then(callback)
+  let isSubscribed = true
 
-  try {
-    const q = query(collection(db, AUDIT_COLLECTION), orderBy("createdAt", "desc"))
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const logs = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        callback(logs.length > 0 ? logs : DEMO_AUDIT)
-      },
-      () => fetchAuditLogs().then(callback)
-    )
-  } catch (error) {
-    console.error("Error initializing listenToAuditLogs:", error)
-    return () => {}
+  const fetchAndNotify = () => {
+    fetchAuditLogs()
+      .then((logs) => {
+        if (isSubscribed) callback(logs.length > 0 ? logs : DEMO_AUDIT)
+      })
+      .catch(() => {
+        if (isSubscribed) callback(DEMO_AUDIT)
+      })
+  }
+
+  fetchAndNotify()
+  const intervalId = setInterval(fetchAndNotify, 5000)
+
+  return () => {
+    isSubscribed = false
+    clearInterval(intervalId)
   }
 }
 

@@ -203,6 +203,36 @@ router.post("/", authenticateUser, async (req, res) => {
 });
 
 /**
+ * PATCH /api/incidents/:id/status — Update incident status (authenticated)
+ */
+router.patch("/:id/status", authenticateUser, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status) {
+      return res.status(400).json({ error: "MISSING_STATUS", message: "Field 'status' is required." });
+    }
+
+    const db = getDb();
+    const docRef = db.collection(COLLECTIONS.INCIDENTS).doc(req.params.id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "NOT_FOUND", message: "Incident not found." });
+    }
+
+    await docRef.update({
+      status,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    res.json({ data: { id: req.params.id, ...doc.data(), status } });
+  } catch (error) {
+    console.error("[Incidents PATCH status] Error:", error.message);
+    res.status(500).json({ error: "UPDATE_FAILED", message: error.message });
+  }
+});
+
+/**
  * PATCH /api/incidents/:id — Update incident (authenticated)
  */
 router.patch("/:id", authenticateUser, async (req, res) => {

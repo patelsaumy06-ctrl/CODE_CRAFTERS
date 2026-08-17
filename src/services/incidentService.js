@@ -1,13 +1,4 @@
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore"
-import { db } from "../firebase/firebase"
 import { api } from "./apiClient"
-
-const INCIDENTS_COLLECTION = "incidents"
 
 /**
  * Creates a new incident via backend API
@@ -20,8 +11,8 @@ export const createIncident = async (data) => {
     severity: data.severity || "medium",
     status: data.status || "reported",
     location: {
-      latitude: Number(data.location?.latitude) || 0,
-      longitude: Number(data.location?.longitude) || 0,
+      latitude: Number(data.location?.latitude ?? data.location?.lat) || 0,
+      longitude: Number(data.location?.longitude ?? data.location?.lng) || 0,
       address: data.location?.address || "Unknown Location",
     },
     source: data.source || "User Ingested",
@@ -42,32 +33,28 @@ export const getIncidents = async () => {
 }
 
 /**
- * Real-time listener — uses Firestore onSnapshot for live UI updates
+ * Real-time incident listener via Express REST API polling
  */
 export const listenToIncidents = (callback) => {
-  getIncidents()
-    .then(callback)
-    .catch((err) => console.error("Error bootstrapping incidents from API:", err))
+  let isSubscribed = true
 
-  try {
-    const q = query(collection(db, INCIDENTS_COLLECTION), orderBy("createdAt", "desc"))
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const incidents = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        if (incidents.length > 0) callback(incidents)
-      },
-      (error) => {
-        console.error("Error in listenToIncidents snapshot:", error)
-        getIncidents().then(callback).catch(() => callback([]))
-      }
-    )
-  } catch (error) {
-    console.error("Error initializing listenToIncidents:", error)
-    return () => {}
+  const fetchAndNotify = () => {
+    getIncidents()
+      .then((incidents) => {
+        if (isSubscribed) callback(incidents)
+      })
+      .catch((err) => {
+        console.error("Error fetching incidents from API:", err)
+        if (isSubscribed) callback([])
+      })
+  }
+
+  fetchAndNotify()
+  const intervalId = setInterval(fetchAndNotify, 4000)
+
+  return () => {
+    isSubscribed = false
+    clearInterval(intervalId)
   }
 }
 

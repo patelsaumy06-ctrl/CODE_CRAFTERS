@@ -1,13 +1,4 @@
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore"
-import { db } from "../firebase/firebase"
 import { api } from "./apiClient"
-
-const ALERTS_COLLECTION = "alerts"
 
 /** Demo-only seed alerts — marked with isDemo: true */
 export const DEMO_ALERTS = [
@@ -59,27 +50,27 @@ export const fetchAlerts = async () => {
 }
 
 /**
- * Real-time alerts listener — API bootstrap + Firestore onSnapshot
+ * Real-time alerts listener via Express REST API polling
  */
 export const listenToAlerts = (callback) => {
-  fetchAlerts().then(callback)
+  let isSubscribed = true
 
-  try {
-    const q = query(collection(db, ALERTS_COLLECTION), orderBy("createdAt", "desc"))
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const alerts = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        callback(alerts.length > 0 ? alerts : DEMO_ALERTS)
-      },
-      () => fetchAlerts().then(callback)
-    )
-  } catch (error) {
-    console.error("Error initializing listenToAlerts:", error)
-    return () => {}
+  const fetchAndNotify = () => {
+    fetchAlerts()
+      .then((alerts) => {
+        if (isSubscribed) callback(alerts.length > 0 ? alerts : DEMO_ALERTS)
+      })
+      .catch(() => {
+        if (isSubscribed) callback(DEMO_ALERTS)
+      })
+  }
+
+  fetchAndNotify()
+  const intervalId = setInterval(fetchAndNotify, 4000)
+
+  return () => {
+    isSubscribed = false
+    clearInterval(intervalId)
   }
 }
 

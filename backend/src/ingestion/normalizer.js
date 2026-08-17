@@ -31,15 +31,17 @@ export class EventNormalizer {
   }
 
   _normalizeCitizen(data) {
+    const lat = Number(data.latitude ?? data.location?.latitude ?? data.location?.lat ?? data.lat) || 0;
+    const lng = Number(data.longitude ?? data.location?.longitude ?? data.location?.lng ?? data.lng) || 0;
     return {
       eventId: uuidv4(),
       sourceType: SOURCE_TYPES.CITIZEN,
       sourceId: data.userId || "anonymous",
-      title: data.title || "Citizen Report",
+      title: data.title || (data.description ? data.description.slice(0, 60) : "Citizen Report"),
       text: data.description || data.text || "",
       location: {
-        latitude: Number(data.latitude || data.location?.latitude) || 0,
-        longitude: Number(data.longitude || data.location?.longitude) || 0,
+        latitude: lat,
+        longitude: lng,
         address: data.address || data.location?.address || "",
       },
       media: data.mediaUrls || data.media || [],
@@ -48,13 +50,15 @@ export class EventNormalizer {
         reporterVerified: Boolean(data.verified),
         contactInfo: data.contact || null,
         casualties: Number(data.casualties) || 0,
-        affectedCount: Number(data.affectedPeople) || 0,
+        affectedCount: Number(data.affectedPeople || data.affectedCount) || 0,
       },
       raw: data,
     };
   }
 
   _normalizeNews(data) {
+    const lat = Number(data.latitude ?? data.location?.latitude ?? data.location?.lat ?? data.lat) || 0;
+    const lng = Number(data.longitude ?? data.location?.longitude ?? data.location?.lng ?? data.lng) || 0;
     return {
       eventId: uuidv4(),
       sourceType: SOURCE_TYPES.NEWS,
@@ -62,8 +66,8 @@ export class EventNormalizer {
       title: data.headline || data.title || "News Report",
       text: data.body || data.content || data.summary || "",
       location: {
-        latitude: Number(data.latitude || data.location?.latitude) || 0,
-        longitude: Number(data.longitude || data.location?.longitude) || 0,
+        latitude: lat,
+        longitude: lng,
         address: data.locationText || data.location?.address || "",
       },
       media: data.images || [],
@@ -81,6 +85,8 @@ export class EventNormalizer {
     const value = Number(data.value || data.reading || 0);
     const threshold = Number(data.threshold || data.normalMax || 0);
     const exceedance = threshold > 0 ? Math.max(0, (value - threshold) / threshold) : 0;
+    const lat = Number(data.latitude ?? data.location?.latitude ?? data.location?.lat ?? data.lat) || 0;
+    const lng = Number(data.longitude ?? data.location?.longitude ?? data.location?.lng ?? data.lng) || 0;
 
     return {
       eventId: uuidv4(),
@@ -89,8 +95,8 @@ export class EventNormalizer {
       title: `Sensor Alert: ${data.sensorType || data.type || "Reading"} at ${data.stationName || data.stationId || "Station"}`,
       text: `${data.sensorType || "Sensor"} reading: ${value} ${data.unit || ""} (threshold: ${threshold} ${data.unit || ""}). ${data.description || ""}`.trim(),
       location: {
-        latitude: Number(data.latitude || data.location?.latitude) || 0,
-        longitude: Number(data.longitude || data.location?.longitude) || 0,
+        latitude: lat,
+        longitude: lng,
         address: data.stationName || data.location?.address || "",
       },
       media: [],
@@ -109,6 +115,8 @@ export class EventNormalizer {
   }
 
   _normalizeSocial(data) {
+    const lat = Number(data.latitude ?? data.location?.latitude ?? data.location?.lat ?? data.lat) || 0;
+    const lng = Number(data.longitude ?? data.location?.longitude ?? data.location?.lng ?? data.lng) || 0;
     return {
       eventId: uuidv4(),
       sourceType: SOURCE_TYPES.SOCIAL,
@@ -116,9 +124,9 @@ export class EventNormalizer {
       title: `Social Report from ${data.handle || data.platform || "Social Media"}`,
       text: data.text || data.content || "",
       location: {
-        latitude: Number(data.latitude) || 0,
-        longitude: Number(data.longitude) || 0,
-        address: data.locationText || "",
+        latitude: lat,
+        longitude: lng,
+        address: data.locationText || data.location?.address || "",
       },
       media: data.mediaUrls || [],
       timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
@@ -133,6 +141,8 @@ export class EventNormalizer {
   }
 
   _normalizeGeneric(sourceType, data) {
+    const lat = Number(data.latitude ?? data.location?.latitude ?? data.location?.lat ?? data.lat) || 0;
+    const lng = Number(data.longitude ?? data.location?.longitude ?? data.location?.lng ?? data.lng) || 0;
     return {
       eventId: uuidv4(),
       sourceType,
@@ -140,8 +150,8 @@ export class EventNormalizer {
       title: data.title || "Report",
       text: data.text || data.description || "",
       location: {
-        latitude: Number(data.latitude || data.location?.latitude) || 0,
-        longitude: Number(data.longitude || data.location?.longitude) || 0,
+        latitude: lat,
+        longitude: lng,
         address: data.address || data.location?.address || "",
       },
       media: [],

@@ -19,6 +19,22 @@ export async function authenticateUser(req, res, next) {
 
   try {
     const authAdmin = getAuth();
+    if (!authAdmin) {
+      // In dev fallback mode without Firebase service account
+      if (idToken === "demo-admin-token" || idToken === "demo-token-admin") {
+        req.user = { uid: "demo_admin_uid", email: "admin@disasterlens.ai", role: ROLES.ADMIN, profile: { role: ROLES.ADMIN } };
+        return next();
+      }
+      if (idToken === "demo-user-token" || idToken === "demo-token-user") {
+        req.user = { uid: "demo_user_uid", email: "user@disasterlens.ai", role: ROLES.CITIZEN, profile: { role: ROLES.CITIZEN } };
+        return next();
+      }
+      return res.status(401).json({
+        error: "UNAUTHENTICATED",
+        message: "Firebase Admin Auth credentials missing on server. Set FIREBASE_SERVICE_ACCOUNT_PATH in backend/.env",
+      });
+    }
+
     const decodedToken = await authAdmin.verifyIdToken(idToken);
 
     // Fetch user profile from Firestore for role
@@ -97,6 +113,10 @@ export async function optionalAuth(req, res, next) {
 
   try {
     const authAdmin = getAuth();
+    if (!authAdmin) {
+      req.user = null;
+      return next();
+    }
     const idToken = authHeader.split("Bearer ")[1];
     const decodedToken = await authAdmin.verifyIdToken(idToken);
     req.user = { uid: decodedToken.uid, email: decodedToken.email || "", role: ROLES.CITIZEN };

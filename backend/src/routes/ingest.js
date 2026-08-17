@@ -10,6 +10,39 @@ const router = Router();
  */
 router.post("/citizen", optionalAuth, async (req, res) => {
   try {
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "INVALID_REQUEST", message: "Request body must be a JSON object." });
+    }
+
+    const description = body.description || body.text || body.title;
+    if (!description || typeof description !== "string" || !description.trim()) {
+      return res.status(400).json({
+        error: "MISSING_DESCRIPTION",
+        message: "Field 'description' or 'text' is required and must be non-empty.",
+      });
+    }
+
+    const latRaw = body.latitude ?? body.location?.latitude ?? body.location?.lat ?? body.lat;
+    const lngRaw = body.longitude ?? body.location?.longitude ?? body.location?.lng ?? body.lng;
+
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+
+    if (latRaw === undefined || lngRaw === undefined || isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({
+        error: "INVALID_LOCATION",
+        message: "Valid location coordinates (lat: -90..90, lng: -180..180) are required in 'location' or root object.",
+      });
+    }
+
+    if (body.timestamp && isNaN(Date.parse(body.timestamp))) {
+      return res.status(400).json({
+        error: "INVALID_TIMESTAMP",
+        message: "Field 'timestamp' must be a valid ISO 8601 date string.",
+      });
+    }
+
     const result = await pipeline.process(SOURCE_TYPES.CITIZEN, req.body);
 
     if (!result.success) {

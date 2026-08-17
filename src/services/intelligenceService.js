@@ -1,13 +1,4 @@
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore"
-import { db } from "../firebase/firebase"
 import { api } from "./apiClient"
-
-const INTELLIGENCE_COLLECTION = "intelligence"
 
 /** Demo-only feed items — marked with isDemo: true */
 export const DEMO_FEED = [
@@ -50,39 +41,41 @@ export const fetchIntelligenceFeed = async (filters = {}) => {
 }
 
 /**
- * Real-time intelligence feed — API bootstrap + Firestore onSnapshot
+ * Real-time intelligence feed via Express REST API polling
  */
 export const listenToIntelligenceFeed = (callback) => {
-  fetchIntelligenceFeed().then(callback)
+  let isSubscribed = true
 
-  try {
-    const q = query(collection(db, INTELLIGENCE_COLLECTION), orderBy("createdAt", "desc"))
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const items = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        callback(items.length > 0 ? items : DEMO_FEED)
-      },
-      () => fetchIntelligenceFeed().then(callback)
-    )
-  } catch (error) {
-    console.error("Error initializing listenToIntelligenceFeed:", error)
-    return () => {}
+  const fetchAndNotify = () => {
+    fetchIntelligenceFeed()
+      .then((items) => {
+        if (isSubscribed) callback(items.length > 0 ? items : DEMO_FEED)
+      })
+      .catch(() => {
+        if (isSubscribed) callback(DEMO_FEED)
+      })
+  }
+
+  fetchAndNotify()
+  const intervalId = setInterval(fetchAndNotify, 4000)
+
+  return () => {
+    isSubscribed = false
+    clearInterval(intervalId)
   }
 }
 
 /**
- * Ingest citizen report via backend pipeline (preferred over direct Firestore write)
+ * Ingest citizen report via backend pipeline
  */
 export const createIntelligenceItem = async (data) => {
   const res = await api.post("/api/ingest/citizen", {
     title: data.title || data.text?.slice(0, 80) || "Citizen Report",
-    description: data.text || "",
-    latitude: data.latitude || 0,
-    longitude: data.longitude || 0,
+    description: data.text || data.description || "",
+    location: {
+      lat: Number(data.latitude ?? data.location?.latitude ?? data.location?.lat) || 0,
+      lng: Number(data.longitude ?? data.location?.longitude ?? data.location?.lng) || 0,
+    },
   })
   return res.data
 }
