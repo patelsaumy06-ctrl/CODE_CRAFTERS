@@ -69,13 +69,22 @@ export const listenToIntelligenceFeed = (callback) => {
  * Ingest citizen report via backend pipeline
  */
 export const createIntelligenceItem = async (data) => {
+  const latRaw = data.latitude ?? data.location?.latitude ?? data.location?.lat
+  const lngRaw = data.longitude ?? data.location?.longitude ?? data.location?.lng
+  const lat = Number(latRaw)
+  const lng = Number(lngRaw)
+
+  // UI form may omit coordinates — use demo region defaults instead of 0,0
+  const latitude = !Number.isNaN(lat) && latRaw !== undefined ? lat : 19.076
+  const longitude = !Number.isNaN(lng) && lngRaw !== undefined ? lng : 72.8777
+
   const res = await api.post("/api/ingest/citizen", {
     title: data.title || data.text?.slice(0, 80) || "Citizen Report",
     description: data.text || data.description || "",
-    location: {
-      lat: Number(data.latitude ?? data.location?.latitude ?? data.location?.lat) || 0,
-      lng: Number(data.longitude ?? data.location?.longitude ?? data.location?.lng) || 0,
-    },
+    latitude,
+    longitude,
+    timestamp: data.timestamp || new Date().toISOString(),
+    source: data.source || "Citizen Stream",
   })
   return res.data
 }

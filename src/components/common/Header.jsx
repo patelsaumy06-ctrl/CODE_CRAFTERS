@@ -98,7 +98,7 @@ export const Header = ({ title = "Command Center" }) => {
                 <span className="material-symbols-outlined text-[12px]">expand_more</span>
               </div>
             </div>
-            
+
             <div
               onClick={() => setRoleMenuOpen(!roleMenuOpen)}
               className="w-9 h-9 rounded-full overflow-hidden border-2 border-[#D98B3A] shrink-0 cursor-pointer hover:ring-2 hover:ring-[#D98B3A]/40 transition-all"
@@ -119,27 +119,24 @@ export const Header = ({ title = "Command Center" }) => {
                 </div>
                 <button
                   onClick={() => switchRole("admin")}
-                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    currentRole === "admin" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
-                  }`}
+                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${currentRole === "admin" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
+                    }`}
                 >
                   <span>Admin</span>
                   {currentRole === "admin" && <span className="material-symbols-outlined text-sm">check</span>}
                 </button>
                 <button
                   onClick={() => switchRole("responder")}
-                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    currentRole === "responder" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
-                  }`}
+                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${currentRole === "responder" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
+                    }`}
                 >
                   <span>Responder</span>
                   {currentRole === "responder" && <span className="material-symbols-outlined text-sm">check</span>}
                 </button>
                 <button
                   onClick={() => switchRole("viewer")}
-                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    currentRole === "viewer" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
-                  }`}
+                  className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${currentRole === "viewer" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
+                    }`}
                 >
                   <span>Viewer (Read-Only)</span>
                   {currentRole === "viewer" && <span className="material-symbols-outlined text-sm">check</span>}
@@ -174,9 +171,8 @@ export const Header = ({ title = "Command Center" }) => {
                       navigate(item.path)
                       setMobileMenuOpen(false)
                     }}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-xs font-semibold ${
-                      isActive ? "bg-[#D98B3A] text-white font-bold" : "text-white/70 hover:bg-white/10"
-                    }`}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-xs font-semibold ${isActive ? "bg-[#D98B3A] text-white font-bold" : "text-white/70 hover:bg-white/10"
+                      }`}
                   >
                     <span className="material-symbols-outlined text-lg">{item.icon}</span>
                     <span>{item.name}</span>
