@@ -1,5 +1,6 @@
 import { normalizer } from "../ingestion/normalizer.js";
 import { classifier } from "../ai/classifier.js";
+import { analyzeDisasterEvent, isLLMEnabled } from "../ai/llmService.js";
 import { confidenceEngine } from "../ai/confidenceEngine.js";
 import { severityEngine } from "../ai/severityEngine.js";
 import { clusterService } from "../clustering/clusterService.js";
@@ -46,12 +47,35 @@ export class ProcessingPipeline {
       const normalized = normalizer.normalize(sourceType, rawData);
       console.log(`[Pipeline:${pipelineId}] Normalized: "${normalized.title}"`);
 
-      // ─── Step 2: Classify ───
+      // ─── Step 2a: LLM Analysis (optional enhancement) ───
+      let llmAnalysis = null;
+      if (isLLMEnabled()) {
+        try {
+          llmAnalysis = await analyzeDisasterEvent(normalized);
+          console.log(`[Pipeline:${pipelineId}] LLM Analysis: ${llmAnalysis.disasterType} (source: ${llmAnalysis.source})`);
+        } catch (llmError) {
+          console.warn(`[Pipeline:${pipelineId}] LLM analysis failed, using deterministic classifier:`, llmError.message);
+        }
+      }
+
+      // ─── Step 2b: Deterministic Classifier (always runs as authoritative fallback) ───
       const classification = classifier.classify(normalized);
+
+      // Merge LLM insights if available and confident enough
+      if (llmAnalysis && llmAnalysis.source === "llm" && llmAnalysis.confidence > classification.confidence) {
+        classification.disasterType = llmAnalysis.disasterType;
+        classification.confidence = Math.max(classification.confidence, llmAnalysis.confidence);
+        classification.llmEnhanced = true;
+        classification.llmSummary = llmAnalysis.summary;
+        classification.llmEntities = llmAnalysis.extractedEntities;
+        classification.llmReasoning = llmAnalysis.reasoning;
+      }
+
       normalized.classification = classification;
       console.log(
         `[Pipeline:${pipelineId}] Classified: ${classification.disasterType} ` +
-        `(confidence: ${(classification.confidence * 100).toFixed(1)}%, urgency: ${classification.urgency})`
+        `(confidence: ${(classification.confidence * 100).toFixed(1)}%, urgency: ${classification.urgency}` +
+        `${classification.llmEnhanced ? ", LLM-enhanced" : ""})`
       );
 
       // ─── Step 3: Cluster — Match or create incident ───
@@ -244,6 +268,8 @@ export class ProcessingPipeline {
       [SOURCE_TYPES.SOCIAL]: "Social Media Stream",
       [SOURCE_TYPES.SATELLITE]: "Satellite Imagery",
       [SOURCE_TYPES.GOVERNMENT]: "Government Agency",
+      [SOURCE_TYPES.REDDIT]: "Reddit Intelligence",
+      "reddit": "Reddit Intelligence",
     };
     return labels[sourceType] || sourceType;
   }

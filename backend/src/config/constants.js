@@ -42,6 +42,7 @@ export const SOURCE_TYPES = {
   SOCIAL: "social_media",
   SATELLITE: "satellite",
   GOVERNMENT: "government_agency",
+  REDDIT: "reddit",
 };
 
 // ─── Source Reliability Weights (0-1) ───────────────────────────
@@ -51,6 +52,7 @@ export const SOURCE_RELIABILITY = {
   [SOURCE_TYPES.SATELLITE]: 0.92,
   [SOURCE_TYPES.NEWS]: 0.75,
   [SOURCE_TYPES.CITIZEN]: 0.60,
+  [SOURCE_TYPES.REDDIT]: 0.55,
   [SOURCE_TYPES.SOCIAL]: 0.50,
 };
 

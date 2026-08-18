@@ -9,6 +9,7 @@ import { initFirebase } from "./config/firebase.js";
 import healthRoutes from "./routes/health.js";
 import incidentRoutes from "./routes/incidents.js";
 import ingestRoutes from "./routes/ingest.js";
+import redditRoutes from "./routes/reddit.js";
 import alertRoutes from "./routes/alerts.js";
 import intelligenceRoutes from "./routes/intelligence.js";
 import searchRoutes from "./routes/search.js";
@@ -88,6 +89,7 @@ app.use((req, res, next) => {
 app.use("/api/health", healthRoutes);
 app.use("/api/incidents", apiLimiter, incidentRoutes);
 app.use("/api/ingest", ingestLimiter, ingestRoutes);
+app.use("/api/ingest/reddit", ingestLimiter, redditRoutes);
 app.use("/api/alerts", apiLimiter, alertRoutes);
 app.use("/api/intelligence", apiLimiter, intelligenceRoutes);
 app.use("/api/search", apiLimiter, searchRoutes);
@@ -114,6 +116,9 @@ app.get("/api", (req, res) => {
         news: "POST /api/ingest/news",
         sensor: "POST /api/ingest/sensor",
         social: "POST /api/ingest/social",
+        reddit: "POST /api/ingest/reddit",
+        redditBatch: "POST /api/ingest/reddit/batch",
+        redditStatus: "GET /api/ingest/reddit/status",
         stats: "GET /api/ingest/stats",
       },
       alerts: {

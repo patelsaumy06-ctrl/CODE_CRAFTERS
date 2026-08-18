@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { SOURCE_TYPES } from "../config/constants.js";
+import { normalizeRedditPost } from "./reddit/redditNormalizer.js";
 
 /**
  * Normalizes any source format into a common NormalizedEvent schema.
@@ -25,6 +26,9 @@ export class EventNormalizer {
         return this._normalizeSensor(rawData);
       case SOURCE_TYPES.SOCIAL:
         return this._normalizeSocial(rawData);
+      case SOURCE_TYPES.REDDIT:
+      case "reddit":
+        return normalizeRedditPost(rawData);
       default:
         return this._normalizeGeneric(sourceType, rawData);
     }
