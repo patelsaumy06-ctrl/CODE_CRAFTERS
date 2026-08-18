@@ -64,7 +64,7 @@ export const Login = () => {
       localStorage.setItem("userEmail", user.email || email)
 
       // 4. Navigate based on the REAL role
-      if (userData.role === "admin" || userData.role === "commander") {
+      if (userData.role === "admin") {
         navigate("/admin")
       } else if (userData.role === "responder") {
         navigate("/")
@@ -256,9 +256,9 @@ export const Login = () => {
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                   >
-                    <option value="admin">Administrator / Commander (Full Access)</option>
-                    <option value="responder">First Responder (Live Operations)</option>
-                    <option value="user">General Public / Citizen (View Only)</option>
+                    <option value="admin">Administrator (Full Access)</option>
+                    <option value="responder">Responder (Field Operations)</option>
+                    <option value="viewer">Viewer (Read-Only Monitoring)</option>
                   </select>
                 </div>
               </div>

@@ -38,7 +38,7 @@ const router = createBrowserRouter([
   {
     path: "/admin",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <Dashboard />
       </ProtectedRoute>
     ),
@@ -46,7 +46,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/control-center",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander"]}>
+      <ProtectedRoute allowedRoles={["admin"]}>
         <AdminControlCenter />
       </ProtectedRoute>
     ),
@@ -54,7 +54,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/incident",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <LiveIncident />
       </ProtectedRoute>
     ),
@@ -62,7 +62,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/incident/:id",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <LiveIncident />
       </ProtectedRoute>
     ),
@@ -70,7 +70,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/analytics",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander"]}>
+      <ProtectedRoute allowedRoles={["admin"]}>
         <AnalyticsReports />
       </ProtectedRoute>
     ),
@@ -78,7 +78,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/notifications",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <AlertsNotifications />
       </ProtectedRoute>
     ),
@@ -86,7 +86,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/intelligence-feed",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <LiveIntelligenceFeed />
       </ProtectedRoute>
     ),
@@ -94,7 +94,7 @@ const router = createBrowserRouter([
   {
     path: "/admin/search",
     element: (
-      <ProtectedRoute allowedRoles={["admin", "commander", "responder"]}>
+      <ProtectedRoute allowedRoles={["admin", "responder", "viewer"]}>
         <SearchIntelligence />
       </ProtectedRoute>
     ),

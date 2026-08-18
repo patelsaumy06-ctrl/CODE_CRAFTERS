@@ -7,8 +7,8 @@ export const Header = ({ title = "Command Center" }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
 
-  const userEmail = localStorage.getItem("userEmail") || "commander@agency.gov"
-  const currentRole = localStorage.getItem("role") || "admin"
+  const userEmail = localStorage.getItem("userEmail") || "user@disasterlens.ai"
+  const currentRole = localStorage.getItem("role") || "viewer"
 
   const switchRole = (newRole) => {
     localStorage.setItem("role", newRole)
@@ -115,7 +115,7 @@ export const Header = ({ title = "Command Center" }) => {
             {roleMenuOpen && (
               <div className="absolute right-0 top-12 w-64 bg-white border border-[#E7DED2] rounded-xl shadow-xl p-3 z-50 space-y-2">
                 <div className="text-[10px] font-mono font-bold text-[#74777e] uppercase border-b border-[#E7DED2] pb-1">
-                  Hackathon Demo Role Switcher
+                  Demo Role Switcher
                 </div>
                 <button
                   onClick={() => switchRole("admin")}
@@ -123,7 +123,7 @@ export const Header = ({ title = "Command Center" }) => {
                     currentRole === "admin" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
                   }`}
                 >
-                  <span>Commander / Admin</span>
+                  <span>Admin</span>
                   {currentRole === "admin" && <span className="material-symbols-outlined text-sm">check</span>}
                 </button>
                 <button
@@ -132,17 +132,17 @@ export const Header = ({ title = "Command Center" }) => {
                     currentRole === "responder" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
                   }`}
                 >
-                  <span>First Responder</span>
+                  <span>Responder</span>
                   {currentRole === "responder" && <span className="material-symbols-outlined text-sm">check</span>}
                 </button>
                 <button
-                  onClick={() => switchRole("user")}
+                  onClick={() => switchRole("viewer")}
                   className={`w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    currentRole === "user" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
+                    currentRole === "viewer" ? "bg-[#001d36] text-white" : "hover:bg-[#F7F3EC] text-[#001d36]"
                   }`}
                 >
-                  <span>Public / Citizen (View Only)</span>
-                  {currentRole === "user" && <span className="material-symbols-outlined text-sm">check</span>}
+                  <span>Viewer (Read-Only)</span>
+                  {currentRole === "viewer" && <span className="material-symbols-outlined text-sm">check</span>}
                 </button>
               </div>
             )}

@@ -79,7 +79,7 @@ export const updateIncident = async (id, data) => {
 }
 
 /**
- * Deletes an incident via backend API (admin/commander only)
+ * Deletes an incident via backend API (admin only)
  */
 export const deleteIncident = async (id) => {
   await api.delete(`/api/incidents/${id}`, { auth: true })

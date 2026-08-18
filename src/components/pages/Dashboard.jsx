@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
 import { listenToIncidents, createIncident } from '../../services/incidentService'
+import { useAuth } from '../../context/AuthContext'
 
 export const Dashboard = () => {
   const navigate = useNavigate()
+  const { userRole } = useAuth()
   const [selectedDisaster, setSelectedDisaster] = useState("All")
   const [selectedLocation, setSelectedLocation] = useState("Global")
   const [selectedUrgency, setSelectedUrgency] = useState("Critical")
@@ -152,6 +154,7 @@ export const Dashboard = () => {
             </div>
 
             <div className="flex items-center gap-3">
+              {userRole !== "viewer" && (
               <button 
                 onClick={() => setIsModalOpen(true)}
                 className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors shadow-sm flex items-center gap-2"
@@ -159,6 +162,7 @@ export const Dashboard = () => {
                 <span className="material-symbols-outlined text-sm">add_alert</span>
                 New Incident Probe
               </button>
+              )}
             </div>
           </div>
 
@@ -389,7 +393,7 @@ export const Dashboard = () => {
       </div>
 
       {/* New Incident Probe Modal */}
-      {isModalOpen && (
+      {userRole !== "viewer" && isModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#001d36]/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-[#E7DED2] rounded-2xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#E7DED2] pb-3">

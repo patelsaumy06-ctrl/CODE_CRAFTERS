@@ -26,7 +26,7 @@ export async function authenticateUser(req, res, next) {
         return next();
       }
       if (idToken === "demo-user-token" || idToken === "demo-token-user") {
-        req.user = { uid: "demo_user_uid", email: "user@disasterlens.ai", role: ROLES.CITIZEN, profile: { role: ROLES.CITIZEN } };
+        req.user = { uid: "demo_user_uid", email: "user@disasterlens.ai", role: ROLES.VIEWER, profile: { role: ROLES.VIEWER } };
         return next();
       }
       return res.status(401).json({
@@ -40,12 +40,12 @@ export async function authenticateUser(req, res, next) {
     // Fetch user profile from Firestore for role
     const db = getDb();
     let profile = null;
-    let role = ROLES.CITIZEN;
+    let role = ROLES.VIEWER;
 
     const userDoc = await db.collection(COLLECTIONS.USERS).doc(decodedToken.uid).get();
     if (userDoc.exists) {
       profile = userDoc.data();
-      role = profile.role || ROLES.CITIZEN;
+      role = profile.role || ROLES.VIEWER;
     } else if (decodedToken.email) {
       // Secondary lookup by email
       const emailQuery = await db
@@ -55,7 +55,7 @@ export async function authenticateUser(req, res, next) {
         .get();
       if (!emailQuery.empty) {
         profile = emailQuery.docs[0].data();
-        role = profile.role || ROLES.CITIZEN;
+        role = profile.role || ROLES.VIEWER;
       }
     }
 
@@ -119,12 +119,12 @@ export async function optionalAuth(req, res, next) {
     }
     const idToken = authHeader.split("Bearer ")[1];
     const decodedToken = await authAdmin.verifyIdToken(idToken);
-    req.user = { uid: decodedToken.uid, email: decodedToken.email || "", role: ROLES.CITIZEN };
+    req.user = { uid: decodedToken.uid, email: decodedToken.email || "", role: ROLES.VIEWER };
 
     const db = getDb();
     const userDoc = await db.collection(COLLECTIONS.USERS).doc(decodedToken.uid).get();
     if (userDoc.exists) {
-      req.user.role = userDoc.data().role || ROLES.CITIZEN;
+      req.user.role = userDoc.data().role || ROLES.VIEWER;
     }
   } catch {
     req.user = null;

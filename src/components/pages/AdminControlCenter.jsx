@@ -264,9 +264,9 @@ export const AdminControlCenter = () => {
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A] cursor-pointer"
                 >
-                  <option value="responder">First Responder</option>
-                  <option value="commander">Commander / Admin</option>
-                  <option value="user">Public / Citizen</option>
+                  <option value="responder">Responder (Field Operations)</option>
+                  <option value="admin">Admin (Full Access)</option>
+                  <option value="viewer">Viewer (Read-Only Monitoring)</option>
                 </select>
               </div>
 

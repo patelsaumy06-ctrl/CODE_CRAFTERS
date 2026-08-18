@@ -2,7 +2,7 @@ import { api } from "./apiClient"
 
 /** Demo-only seed data — never presented as production records */
 export const DEMO_USERS = [
-  { id: "usr_demo_1", name: "Sarah Connor", email: "s.connor@agency.gov", role: "commander", status: "active", lastLogin: "10m ago", isDemo: true },
+  { id: "usr_demo_1", name: "Sarah Connor", email: "s.connor@agency.gov", role: "admin", status: "active", lastLogin: "10m ago", isDemo: true },
   { id: "usr_demo_2", name: "Marcus Wright", email: "m.wright@agency.gov", role: "responder", status: "active", lastLogin: "1h ago", isDemo: true },
   { id: "usr_demo_3", name: "Elena Rostova", email: "e.rostova@agency.gov", role: "admin", status: "active", lastLogin: "Just now", isDemo: true },
 ]

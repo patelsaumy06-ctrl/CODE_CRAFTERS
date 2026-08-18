@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
 import { getIncidentById, listenToIncidents, updateIncident } from '../../services/incidentService'
+import { useAuth } from '../../context/AuthContext'
 
 export const LiveIncident = () => {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { userRole } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [incident, setIncident] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -96,22 +98,26 @@ export const LiveIncident = () => {
                 </div>
               </div>
 
-              <button 
-                onClick={handleToggleVerify}
-                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors border ${
-                  isVerified ? "bg-green-100 text-green-800 border-green-300 hover:bg-green-200" : "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
-                }`}
-              >
-                {isVerified ? "✓ Verified Event" : "Verify Ground Truth"}
-              </button>
+              {userRole !== "viewer" && (
+                <button 
+                  onClick={handleToggleVerify}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors border ${
+                    isVerified ? "bg-green-100 text-green-800 border-green-300 hover:bg-green-200" : "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
+                  }`}
+                >
+                  {isVerified ? "✓ Verified Event" : "Verify Ground Truth"}
+                </button>
+              )}
 
-              <button 
-                onClick={() => navigate("/admin/notifications")}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">campaign</span>
-                Issue Broadcast Alert
-              </button>
+              {userRole !== "viewer" && (
+                <button 
+                  onClick={() => navigate("/admin/notifications")}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">campaign</span>
+                  Issue Broadcast Alert
+                </button>
+              )}
             </div>
           </div>
 

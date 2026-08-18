@@ -10,7 +10,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (request.auth.token.email == "admin@codecrafters.ai" ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["admin", "commander"]);
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
     }
 
     // USERS Collection

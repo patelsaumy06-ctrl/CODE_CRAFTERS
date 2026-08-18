@@ -45,7 +45,7 @@ export const Signup = () => {
       alert("Account successfully created! Redirecting to Command Center...")
 
       // 4. Redirect based on role
-      if (role === "admin" || role === "commander") {
+      if (role === "admin") {
         navigate("/admin")
       } else {
         navigate("/admin")
@@ -160,9 +160,9 @@ export const Signup = () => {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="responder">First Responder (Field Operations)</option>
-                <option value="commander">Commander / Administrator (Full Control)</option>
-                <option value="user">Public / Citizen Observer</option>
+                <option value="responder">Responder (Field Operations)</option>
+                <option value="admin">Administrator (Full Access)</option>
+                <option value="viewer">Viewer (Read-Only Monitoring)</option>
               </select>
             </div>
 

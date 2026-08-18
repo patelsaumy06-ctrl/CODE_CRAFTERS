@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userProfile,
-    userRole: userProfile?.role || "public",
+    userRole: userProfile?.role || "viewer",
     loading,
     logout
   }

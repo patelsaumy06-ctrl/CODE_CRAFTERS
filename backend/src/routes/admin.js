@@ -8,7 +8,7 @@ import admin from "firebase-admin";
 
 const router = Router();
 
-// All admin routes require authentication + admin/commander role
+// All admin routes require authentication + admin role
 router.use(authenticateUser);
 router.use(requireRole(...ADMIN_ROLES));
 

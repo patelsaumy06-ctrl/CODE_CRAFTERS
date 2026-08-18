@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getDb } from "../config/firebase.js";
-import { COLLECTIONS } from "../config/constants.js";
+import { COLLECTIONS, OPERATIONAL_ROLES } from "../config/constants.js";
 import { authenticateUser, requireRole } from "../middleware/auth.js";
 import admin from "firebase-admin";
 
@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
 /**
  * POST /api/alerts — Create manual alert (authenticated)
  */
-router.post("/", authenticateUser, async (req, res) => {
+router.post("/", authenticateUser, requireRole(...OPERATIONAL_ROLES), async (req, res) => {
   try {
     const db = getDb();
     const data = req.body;
@@ -69,7 +69,7 @@ router.post("/", authenticateUser, async (req, res) => {
 /**
  * PATCH /api/alerts/:id — Update alert status (authenticated)
  */
-router.patch("/:id", authenticateUser, async (req, res) => {
+router.patch("/:id", authenticateUser, requireRole(...OPERATIONAL_ROLES), async (req, res) => {
   try {
     const db = getDb();
     const docRef = db.collection(COLLECTIONS.ALERTS).doc(req.params.id);

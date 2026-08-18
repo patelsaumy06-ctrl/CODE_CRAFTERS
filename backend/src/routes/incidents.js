@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { getDb } from "../config/firebase.js";
-import { COLLECTIONS } from "../config/constants.js";
+import { COLLECTIONS, ADMIN_ROLES, OPERATIONAL_ROLES } from "../config/constants.js";
 import { authenticateUser, optionalAuth, requireRole } from "../middleware/auth.js";
-import { ADMIN_ROLES } from "../config/constants.js";
 import admin from "firebase-admin";
 
 const router = Router();
@@ -156,7 +155,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
 /**
  * POST /api/incidents — Create incident (authenticated)
  */
-router.post("/", authenticateUser, async (req, res) => {
+router.post("/", authenticateUser, requireRole(...OPERATIONAL_ROLES), async (req, res) => {
   try {
     const db = getDb();
     const data = req.body;
@@ -205,7 +204,7 @@ router.post("/", authenticateUser, async (req, res) => {
 /**
  * PATCH /api/incidents/:id/status — Update incident status (authenticated)
  */
-router.patch("/:id/status", authenticateUser, async (req, res) => {
+router.patch("/:id/status", authenticateUser, requireRole(...OPERATIONAL_ROLES), async (req, res) => {
   try {
     const { status } = req.body;
     if (!status) {
@@ -235,7 +234,7 @@ router.patch("/:id/status", authenticateUser, async (req, res) => {
 /**
  * PATCH /api/incidents/:id — Update incident (authenticated)
  */
-router.patch("/:id", authenticateUser, async (req, res) => {
+router.patch("/:id", authenticateUser, requireRole(...OPERATIONAL_ROLES), async (req, res) => {
   try {
     const db = getDb();
     const docRef = db.collection(COLLECTIONS.INCIDENTS).doc(req.params.id);
@@ -264,7 +263,7 @@ router.patch("/:id", authenticateUser, async (req, res) => {
 });
 
 /**
- * DELETE /api/incidents/:id — Delete incident (admin/commander only)
+ * DELETE /api/incidents/:id — Delete incident (admin only)
  */
 router.delete("/:id", authenticateUser, requireRole(...ADMIN_ROLES), async (req, res) => {
   try {

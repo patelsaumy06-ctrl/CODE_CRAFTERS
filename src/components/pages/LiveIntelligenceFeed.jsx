@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
 import { listenToIntelligenceFeed, createIntelligenceItem } from '../../services/intelligenceService'
+import { useAuth } from '../../context/AuthContext'
 
 export const LiveIntelligenceFeed = () => {
+  const { userRole } = useAuth()
   const [filterSource, setFilterSource] = useState("All")
   const [feedItems, setFeedItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -60,39 +62,44 @@ export const LiveIntelligenceFeed = () => {
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* Rapid Field Ingest Bar */}
-          <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-4 shadow-sm space-y-3">
-            <h3 className="font-bold text-xs text-[#001d36] uppercase tracking-wider flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#D98B3A] text-base">rss_feed</span>
-              Ingest Live Ground Intelligence to Firestore
-            </h3>
-            <form onSubmit={handlePostReport} className="flex gap-3 flex-wrap">
-              <input
-                type="text"
-                value={newText}
-                onChange={(e) => setNewText(e.target.value)}
-                placeholder="Type real-time field observation or telemetry alert e.g. 'Substation power grid fault in Sector 2'..."
-                className="flex-1 min-w-[280px] bg-white border border-[#E7DED2] rounded-lg px-3 py-2 text-xs text-[#001d36] focus:outline-none focus:border-[#D98B3A]"
-                required
-              />
-              <select
-                value={newSource}
-                onChange={(e) => setNewSource(e.target.value)}
-                className="bg-white border border-[#E7DED2] rounded-lg px-3 py-2 text-xs text-[#001d36] cursor-pointer"
-              >
-                <option value="Citizen Stream">Citizen Stream</option>
-                <option value="IoT Hydrological Sensor">IoT Sensor</option>
-                <option value="Drone Recon Stream">Drone Recon</option>
-              </select>
-              <button
-                type="submit"
-                disabled={posting}
-                className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {posting ? "Ingesting..." : "Publish to Feed"}
-              </button>
-            </form>
-          </div>
+          {/* Report Ingestion Form */}
+          {userRole !== "viewer" && (
+            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-4 shadow-sm space-y-3">
+              <h3 className="font-bold text-xs text-[#001d36] uppercase tracking-wider flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#D98B3A] text-base">rss_feed</span>
+                Ingest Live Ground Intelligence to Firestore
+              </h3>
+              
+              <form onSubmit={handlePostReport} className="flex gap-3 flex-wrap">
+                <input 
+                  type="text" 
+                  value={newText}
+                  onChange={(e) => setNewText(e.target.value)}
+                  placeholder="Enter field observation or intelligence blurb..."
+                  className="flex-1 min-w-[250px] border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                  required
+                />
+                <select 
+                  value={newSource}
+                  onChange={(e) => setNewSource(e.target.value)}
+                  className="w-40 border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                >
+                  <option value="Citizen Stream">Citizen Stream</option>
+                  <option value="Drone Recon">Drone Recon</option>
+                  <option value="Satellite Array">Satellite Array</option>
+                  <option value="Field Reporter">Field Reporter</option>
+                  <option value="Sensor Alert">Sensor Alert</option>
+                </select>
+                <button 
+                  type="submit" 
+                  disabled={posting}
+                  className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {posting ? "Ingesting..." : "Publish to Feed"}
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* Source Filter Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4">

@@ -26,15 +26,13 @@ export const SEVERITY_ORDER = { low: 0, medium: 1, high: 2, critical: 3 };
 // ─── User Roles ─────────────────────────────────────────────────
 export const ROLES = {
   ADMIN: "admin",
-  COMMANDER: "commander",
   RESPONDER: "responder",
-  ANALYST: "analyst",
-  CITIZEN: "citizen",
-  USER: "user",
+  VIEWER: "viewer",
 };
 
-export const ADMIN_ROLES = [ROLES.ADMIN, ROLES.COMMANDER];
-export const OPERATIONAL_ROLES = [ROLES.ADMIN, ROLES.COMMANDER, ROLES.RESPONDER];
+export const ADMIN_ROLES = [ROLES.ADMIN];
+export const OPERATIONAL_ROLES = [ROLES.ADMIN, ROLES.RESPONDER];
+export const VIEWER_ROLES = [ROLES.ADMIN, ROLES.RESPONDER, ROLES.VIEWER];
 
 // ─── Source Types ───────────────────────────────────────────────
 export const SOURCE_TYPES = {
