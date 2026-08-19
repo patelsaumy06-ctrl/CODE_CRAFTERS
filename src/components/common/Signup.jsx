@@ -42,7 +42,7 @@ export const Signup = () => {
       localStorage.setItem("role", role)
       localStorage.setItem("userEmail", user.email || email)
 
-      alert("Account successfully created! Redirecting to Command Center...")
+      alert("Account created successfully. Redirecting to dashboard...")
 
       // 4. Redirect based on role
       if (role === "admin") {
@@ -53,7 +53,7 @@ export const Signup = () => {
     } catch (error) {
       console.error("Signup error:", error)
       if (error.code === "auth/email-already-in-use") {
-        setErrorMsg("This email address is already registered. Please login instead.")
+        setErrorMsg("This email address is already registered. Please sign in instead.")
       } else if (error.code === "auth/weak-password") {
         setErrorMsg("Password should be at least 6 characters long.")
       } else {
@@ -65,39 +65,40 @@ export const Signup = () => {
   }
 
   return (
-    <div className="text-on-surface min-h-screen flex antialiased relative w-full">
+    <div className="text-[#1c1c18] min-h-screen flex antialiased relative w-full">
       {/* Background Map */}
       <div className="fixed inset-0 z-0">
         <img
-          alt="Global Map Intelligence"
+          alt="Map background"
           className="w-full h-full object-cover"
           src={LoginscreenBG}
         />
+        <div className="absolute inset-0 bg-[#001d36]/30"></div>
       </div>
 
       <main className="relative z-10 flex w-full min-h-screen flex-col items-center justify-center p-4 py-12">
-        <div className="glass-panel w-full max-w-xl rounded-2xl p-6 md:p-8 flex flex-col gap-6 relative backdrop-blur-2xl bg-white/70 shadow-2xl border border-white/40">
-          
+        <div className="w-full max-w-md bg-white rounded-xl border border-[#E7DED2] shadow-lg p-6 md:p-8 flex flex-col gap-6">
+
           {/* Header */}
-          <div className="flex flex-col items-center text-center gap-2">
+          <div className="flex flex-col items-center text-center gap-1">
             <div
-              className="flex items-center gap-2 cursor-pointer select-none"
+              className="flex items-center gap-2 cursor-pointer select-none mb-2"
               onClick={() => navigate("/")}
             >
-              <span className="material-symbols-outlined text-[#D98B3A]" style={{ fontSize: '36px' }}>
+              <span className="material-symbols-outlined text-[#D98B3A]" style={{ fontSize: '28px' }}>
                 radar
               </span>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#001d36] tracking-tight">
-                DisasterLens AI
-              </h1>
+              <span className="text-xl font-bold text-[#001d36] tracking-tight">
+                DisasterLens
+              </span>
             </div>
-            <h2 className="text-sm text-[#74777e] max-w-md">
-              Create an official agency account to access real-time emergency intelligence feeds.
-            </h2>
+            <p className="text-sm text-[#74777e]">
+              Create a new account
+            </p>
           </div>
 
           {errorMsg && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-xs font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-sm">error</span>
               <span>{errorMsg}</span>
             </div>
@@ -106,14 +107,14 @@ export const Signup = () => {
           {/* Signup Form */}
           <form onSubmit={handleSignup} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase text-[#74777e] mb-1" htmlFor="name">
-                FULL NAME / OFFICER TITLE
+              <label className="block text-xs font-medium text-[#43474d] mb-1.5" htmlFor="name">
+                Full name
               </label>
               <input
-                className="w-full px-3 py-2 border rounded-lg text-xs text-[#001d36] bg-white/90 border-[#E7DED2] focus:outline-none focus:border-[#D98B3A]"
+                className="input-field w-full px-3 py-2.5 border rounded-lg text-sm text-[#1c1c18] bg-white border-[#E7DED2] placeholder-[#74777e]"
                 id="name"
                 type="text"
-                placeholder="Officer Alex Mercer"
+                placeholder="Your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -121,14 +122,14 @@ export const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase text-[#74777e] mb-1" htmlFor="email">
-                OFFICIAL AGENCY EMAIL
+              <label className="block text-xs font-medium text-[#43474d] mb-1.5" htmlFor="email">
+                Email address
               </label>
               <input
-                className="w-full px-3 py-2 border rounded-lg text-xs text-[#001d36] bg-white/90 border-[#E7DED2] focus:outline-none focus:border-[#D98B3A]"
+                className="input-field w-full px-3 py-2.5 border rounded-lg text-sm text-[#1c1c18] bg-white border-[#E7DED2] placeholder-[#74777e]"
                 id="email"
                 type="email"
-                placeholder="a.mercer@agency.gov"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -136,14 +137,14 @@ export const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase text-[#74777e] mb-1" htmlFor="password">
-                PASSWORD (MIN 6 CHARACTERS)
+              <label className="block text-xs font-medium text-[#43474d] mb-1.5" htmlFor="password">
+                Password
               </label>
               <input
-                className="w-full px-3 py-2 border rounded-lg text-xs text-[#001d36] bg-white/90 border-[#E7DED2] focus:outline-none focus:border-[#D98B3A]"
+                className="input-field w-full px-3 py-2.5 border rounded-lg text-sm text-[#1c1c18] bg-white border-[#E7DED2] placeholder-[#74777e]"
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Min. 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -151,40 +152,39 @@ export const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase text-[#74777e] mb-1" htmlFor="role">
-                REQUESTED AGENCY ROLE
+              <label className="block text-xs font-medium text-[#43474d] mb-1.5" htmlFor="role">
+                Role
               </label>
               <select
-                className="w-full px-3 py-2 border rounded-lg text-xs text-[#001d36] bg-white/90 border-[#E7DED2] focus:outline-none focus:border-[#D98B3A] cursor-pointer"
+                className="input-field w-full px-3 py-2.5 border rounded-lg text-sm text-[#1c1c18] bg-white border-[#E7DED2] cursor-pointer"
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="responder">Responder (Field Operations)</option>
-                <option value="admin">Administrator (Full Access)</option>
-                <option value="viewer">Viewer (Read-Only Monitoring)</option>
+                <option value="responder">Responder</option>
+                <option value="admin">Administrator</option>
+                <option value="viewer">Viewer (read-only)</option>
               </select>
             </div>
 
             <button
-              className="w-full py-2.5 px-4 rounded-lg font-bold text-xs uppercase tracking-wider text-white bg-[#001d36] hover:bg-[#17324d] transition-colors shadow-md disabled:opacity-50 mt-2"
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-[#001d36] hover:bg-[#17324d] transition-colors disabled:opacity-50 mt-1"
               type="submit"
               disabled={loading}
             >
-              {loading ? "Creating Account..." : "Create Agency Account"}
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
 
-          <div className="pt-2 text-center text-xs text-[#74777e]">
-            Already have an active account?{" "}
+          <div className="text-center text-xs text-[#74777e]">
+            Already have an account?{" "}
             <button
               onClick={() => navigate("/login")}
-              className="font-bold text-[#D98B3A] hover:underline"
+              className="font-semibold text-[#001d36] hover:underline"
             >
-              Sign In Here
+              Sign in
             </button>
           </div>
-
         </div>
       </main>
     </div>

@@ -19,9 +19,9 @@ export const AdminControlCenter = () => {
   const [inviting, setInviting] = useState(false)
 
   useEffect(() => {
-    const unsubUsers = listenToUsers((u) => setUsers(u))
+    const unsubUsers = listenToUsers((u) => setUsers(u || []))
     const unsubAudit = listenToAuditLogs((a) => {
-      setAuditLogs(a)
+      setAuditLogs(a || [])
       setLoading(false)
     })
     fetchSystemHealth().then(setSystemHealth)
@@ -42,7 +42,7 @@ export const AdminControlCenter = () => {
         email: inviteEmail,
         role: inviteRole
       })
-      alert(`User ${inviteEmail} invited as ${inviteRole} and registered in Firestore!`)
+      alert(`User ${inviteEmail} invited as ${inviteRole}.`)
       setIsInviteOpen(false)
       setInviteName("")
       setInviteEmail("")
@@ -59,23 +59,22 @@ export const AdminControlCenter = () => {
       <Sidebar />
 
       <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
-        <Header title="Admin Control Center" />
+        <Header title="Control Center" />
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Top Banner */}
-          <div className="bg-[#001d36] text-white p-6 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-4">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+          {/* Header Banner */}
+          <div className="bg-white border border-[#E7DED2] p-4 md:p-5 rounded-lg flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#D98B3A]">admin_panel_settings</span>
-                System Administration & Governance
+              <h2 className="text-base font-semibold text-[#001d36]">
+                Administration
               </h2>
-              <p className="text-xs text-white/70 mt-1 max-w-2xl">
-                Manage user permissions, configure API data ingestion pipelines, inspect system security audit logs, and monitor cloud infrastructure health.
+              <p className="text-xs text-[#74777e] mt-0.5 max-w-2xl">
+                Manage user permissions, monitor automated ingestion connectors, and review security audit logs.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="bg-green-500/20 text-green-300 border border-green-400/40 text-xs px-3 py-1 rounded-full font-mono font-semibold">
-                SYSTEM: ALL SYSTEMS NORMAL
+            <div className="flex items-center gap-2">
+              <span className="bg-green-50 text-green-800 border border-green-200 text-xs px-2.5 py-1 rounded-md font-medium">
+                ● System Healthy
               </span>
             </div>
           </div>
@@ -84,79 +83,79 @@ export const AdminControlCenter = () => {
           <div className="flex border-b border-[#E7DED2] gap-6">
             <button
               onClick={() => setActiveTab("roles")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
+              className={`pb-2.5 text-xs font-semibold transition-colors border-b-2 cursor-pointer ${
                 activeTab === "roles"
-                  ? "border-[#D98B3A] text-[#001d36]"
+                  ? "border-[#001d36] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
               }`}
             >
-              User Roles & Access Control
+              Users & Permissions
             </button>
             <button
               onClick={() => setActiveTab("apis")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
+              className={`pb-2.5 text-xs font-semibold transition-colors border-b-2 cursor-pointer ${
                 activeTab === "apis"
-                  ? "border-[#D98B3A] text-[#001d36]"
+                  ? "border-[#001d36] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
               }`}
             >
-              API & Ingestion Pipeline
+              Data Sources
             </button>
             <button
               onClick={() => setActiveTab("audit")}
-              className={`pb-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
+              className={`pb-2.5 text-xs font-semibold transition-colors border-b-2 cursor-pointer ${
                 activeTab === "audit"
-                  ? "border-[#D98B3A] text-[#001d36]"
+                  ? "border-[#001d36] text-[#001d36]"
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
               }`}
             >
-              Security Audit Logs
+              Audit Log
             </button>
           </div>
 
           {/* Tab Content */}
           {activeTab === "roles" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
+            <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="font-bold text-sm text-[#001d36]">Active Agency Accounts (Firestore Stream)</h3>
+                <h3 className="font-semibold text-xs text-[#001d36]">Registered Users</h3>
                 <button 
                   onClick={() => setIsInviteOpen(true)}
-                  className="bg-[#001d36] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#17324d] transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="bg-[#001d36] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#17324d] transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-sm">person_add</span>
-                  Invite Agency User
+                  <span className="material-symbols-outlined text-base">person_add</span>
+                  Invite User
                 </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F3EC] border-b border-[#E7DED2] text-[#74777e] uppercase font-mono">
+                  <thead className="bg-[#FAF7F2] border-b border-[#E7DED2] text-[#74777e]">
                     <tr>
-                      <th className="p-3">User Name</th>
-                      <th className="p-3">Email</th>
-                      <th className="p-3">Role</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Last Active</th>
+                      <th className="p-2.5 font-medium">Name</th>
+                      <th className="p-2.5 font-medium">Email</th>
+                      <th className="p-2.5 font-medium">Role</th>
+                      <th className="p-2.5 font-medium">Status</th>
+                      <th className="p-2.5 font-medium">Last Login</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E7DED2]">
                     {users.map((u) => (
-                      <tr key={u.id || u.email} className="hover:bg-[#F7F3EC]/50">
-                        <td className="p-3 font-bold text-[#001d36]">{u.name || "Agency User"}</td>
-                        <td className="p-3 font-mono text-[#74777e]">{u.email}</td>
-                        <td className="p-3">
-                          <span className="bg-[#001d36] text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                      <tr key={u.id || u.email} className="hover:bg-[#FAF7F2]">
+                        <td className="p-2.5 font-medium text-[#001d36]">{u.name || "User"}</td>
+                        <td className="p-2.5 font-mono text-[#74777e]">{u.email}</td>
+                        <td className="p-2.5">
+                          <span className="bg-[#FAF7F2] border border-[#E7DED2] text-[#001d36] px-2 py-0.5 rounded text-[10px] font-medium uppercase">
                             {u.role}
                           </span>
                         </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            u.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            u.status === "active" ? "bg-green-50 text-green-800" : "bg-slate-50 text-slate-700"
                           }`}>
                             {u.status || "Active"}
                           </span>
                         </td>
-                        <td className="p-3 font-mono text-[#74777e]">{u.lastLogin || "Recently"}</td>
+                        <td className="p-2.5 text-[#74777e]">{u.lastLogin || "Recent"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -166,28 +165,28 @@ export const AdminControlCenter = () => {
           )}
 
           {activeTab === "apis" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
+            <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-[#001d36]">Background Ingestion Worker & Connector Telemetry</h3>
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-bold">
-                  WORKER: {workerHealth?.worker?.running ? "RUNNING (ACTIVE POLLING)" : "IDLE"}
+                <h3 className="font-semibold text-xs text-[#001d36]">Ingestion Connectors</h3>
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-green-50 text-green-800">
+                  Worker: {workerHealth?.worker?.running ? "Active" : "Idle"}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {workerHealth?.worker?.services ? (
                   Object.entries(workerHealth.worker.services).map(([key, svc]) => (
-                    <div key={key} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2 shadow-sm">
+                    <div key={key} className="p-3.5 border border-[#E7DED2] rounded-lg bg-[#FAF7F2] space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-sm text-[#001d36]">{svc.name}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800">
+                        <span className="font-semibold text-xs text-[#001d36]">{svc.name}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-[#E7DED2] text-slate-700">
                           {svc.status || "IDLE"}
                         </span>
                       </div>
-                      <p className="font-mono text-[11px] text-[#74777e]">
-                        Interval: {Math.round(svc.intervalMs / 60000)} min &bull; Processed: <b>{svc.eventsProcessed || 0}</b>
+                      <p className="text-[11px] text-[#74777e]">
+                        Interval: {Math.round(svc.intervalMs / 60000)}m · Events: <b>{svc.eventsProcessed || 0}</b>
                       </p>
-                      <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1 border-t border-slate-100">
+                      <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1.5 border-t border-slate-200">
                         <span>Success: {svc.successCount || 0} | Fail: {svc.failureCount || 0}</span>
                         <span>{svc.lastRun ? new Date(svc.lastRun).toLocaleTimeString() : "Pending"}</span>
                       </div>
@@ -195,23 +194,23 @@ export const AdminControlCenter = () => {
                   ))
                 ) : (
                   <div className="col-span-full p-4 text-center text-xs text-[#74777e]">
-                    Loading worker connectors...
+                    Loading connector status...
                   </div>
                 )}
 
-                {/* Open-Meteo On-Demand Card */}
-                <div className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2 shadow-sm">
+                {/* Open-Meteo Card */}
+                <div className="p-3.5 border border-[#E7DED2] rounded-lg bg-[#FAF7F2] space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-[#001d36]">Open-Meteo Weather & Flood</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
-                      ON-DEMAND
+                    <span className="font-semibold text-xs text-[#001d36]">Open-Meteo Weather</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-[#E7DED2] text-slate-700">
+                      On-demand
                     </span>
                   </div>
-                  <p className="font-mono text-[11px] text-[#74777e]">
+                  <p className="text-[11px] text-[#74777e]">
                     Cache: 15m (Weather) / 60m (Flood)
                   </p>
-                  <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1 border-t border-slate-100">
-                    <span>Coordinates Rounding ~1.1km</span>
+                  <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1.5 border-t border-slate-200">
+                    <span>Precision: ~1.1km grid</span>
                     <span>Active</span>
                   </div>
                 </div>
@@ -220,18 +219,18 @@ export const AdminControlCenter = () => {
           )}
 
           {activeTab === "audit" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#001d36]">Immutable Security Audit Logs (Cloud Firestore)</h3>
+            <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-3">
+              <h3 className="font-semibold text-xs text-[#001d36]">Security Audit Log</h3>
               <div className="space-y-2">
                 {auditLogs.map((log) => (
-                  <div key={log.id || log.action} className="p-3 border border-[#E7DED2] rounded-lg bg-white flex flex-wrap items-center justify-between text-xs gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-[#D98B3A]">{log.action}</span>
+                  <div key={log.id || log.action} className="p-2.5 border border-[#E7DED2] rounded-lg bg-[#FAF7F2] flex flex-wrap items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-mono font-medium text-[#001d36]">{log.action}</span>
                       <span className="text-[#74777e]">{log.details || log.user}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-[10px] text-[#74777e]">{log.ip || "192.168.1.1"}</span>
-                      <span className="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-mono text-[10px] text-[#74777e]">{log.ip || "Local"}</span>
+                      <span className="bg-white border border-[#E7DED2] text-[#001d36] font-medium px-2 py-0.5 rounded text-[10px]">
                         {log.status}
                       </span>
                     </div>
@@ -245,21 +244,20 @@ export const AdminControlCenter = () => {
 
       {/* Invite User Modal */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 bg-[#001d36]/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E7DED2] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-3">
-              <h3 className="font-bold text-base text-[#001d36] flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#D98B3A]">person_add</span>
-                Invite Agency Officer
+        <div className="fixed inset-0 z-50 bg-[#001d36]/40 flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E7DED2] rounded-xl max-w-md w-full p-5 space-y-3.5 shadow-xl">
+            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-2.5">
+              <h3 className="font-semibold text-sm text-[#001d36]">
+                Invite User
               </h3>
-              <button onClick={() => setIsInviteOpen(false)} className="text-[#74777e] hover:text-[#001d36]">
-                <span className="material-symbols-outlined">close</span>
+              <button onClick={() => setIsInviteOpen(false)} className="text-[#74777e] hover:text-[#001d36] text-lg font-bold">
+                ✕
               </button>
             </div>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-4">
+            <form onSubmit={handleInviteSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
+                <label className="block text-xs font-medium text-[#43474d] mb-1">
                   Full Name
                 </label>
                 <input 
@@ -267,52 +265,52 @@ export const AdminControlCenter = () => {
                   placeholder="Officer J. Miller"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A]"
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#001d36] focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
-                  Official Email Address
+                <label className="block text-xs font-medium text-[#43474d] mb-1">
+                  Email Address
                 </label>
                 <input 
                   type="email"
                   placeholder="j.miller@agency.gov"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A]"
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#001d36] focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-[#74777e] mb-1">
-                  Assigned Agency Role
+                <label className="block text-xs font-medium text-[#43474d] mb-1">
+                  Assigned Role
                 </label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#D98B3A] cursor-pointer"
+                  className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs text-[#001d36] focus:border-[#001d36] focus:outline-none cursor-pointer"
                 >
-                  <option value="responder">Responder (Field Operations)</option>
-                  <option value="admin">Admin (Full Access)</option>
-                  <option value="viewer">Viewer (Read-Only Monitoring)</option>
+                  <option value="responder">Responder</option>
+                  <option value="admin">Admin</option>
+                  <option value="viewer">Viewer (Read-only)</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsInviteOpen(false)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200"
+                  className="px-3.5 py-1.5 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={inviting}
-                  className="px-4 py-2 bg-[#001d36] text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] disabled:opacity-50"
+                  className="px-4 py-1.5 bg-[#001d36] text-white rounded-lg text-xs font-semibold hover:bg-[#17324d] disabled:opacity-50"
                 >
                   {inviting ? "Inviting..." : "Send Invitation"}
                 </button>

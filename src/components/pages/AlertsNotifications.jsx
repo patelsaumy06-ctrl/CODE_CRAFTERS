@@ -17,7 +17,7 @@ export const AlertsNotifications = () => {
 
   useEffect(() => {
     const unsubscribe = listenToAlerts((data) => {
-      setAlertsList(data)
+      setAlertsList(data || [])
       setLoading(false)
     })
     return () => unsubscribe()
@@ -34,14 +34,14 @@ export const AlertsNotifications = () => {
         message: broadcastMessage,
         severity: severity,
         target: target,
-        status: "Broadcasting"
+        status: "Active"
       })
-      alert(`Emergency Broadcast Dispatched & Logged in Firestore!\nTitle: "${broadcastTitle}" [Severity: ${severity}]`)
+      alert(`Alert sent: "${broadcastTitle}"`)
       setBroadcastTitle("")
       setBroadcastMessage("")
     } catch (error) {
       console.error("Error dispatching alert:", error)
-      alert("Failed to dispatch broadcast alert to Firestore: " + error.message)
+      alert("Failed to send alert: " + error.message)
     } finally {
       setDispatching(false)
     }
@@ -52,82 +52,82 @@ export const AlertsNotifications = () => {
       <Sidebar />
 
       <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
-        <Header title="Alerts & Notification Dispatch" />
+        <Header title="Alerts & Notifications" />
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
 
           {/* Broadcast Dispatcher Form */}
           {userRole !== "viewer" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-              <h2 className="font-bold text-base text-[#001d36] flex items-center gap-2">
-                <span className="material-symbols-outlined text-red-600">campaign</span>
-                Emergency Broadcast Center
+            <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-3">
+              <h2 className="font-semibold text-sm text-[#001d36] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base text-red-600">campaign</span>
+                Send Alert
               </h2>
               <p className="text-xs text-[#74777e]">
-                Dispatch immediate warnings to field responder apps, civilian SMS gateways, and local news outlets. All broadcasts are logged immutably.
+                Send an emergency alert to responders and the public.
               </p>
 
-              <form onSubmit={handleBroadcast} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleBroadcast} className="space-y-3.5 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-[#74777e] tracking-wider">Alert Headline</label>
+                    <label className="text-[11px] font-medium text-[#43474d]">Alert Title</label>
                     <input 
                       type="text" 
                       required
                       value={broadcastTitle}
                       onChange={(e) => setBroadcastTitle(e.target.value)}
-                      placeholder="e.g. Evacuation Order: Sector 4"
-                      className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                      placeholder="e.g. Evacuation advisory for River Basin"
+                      className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#001d36] focus:outline-none"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-[#74777e] tracking-wider">Severity / Level</label>
+                    <label className="text-[11px] font-medium text-[#43474d]">Severity Level</label>
                     <select 
                       value={severity}
                       onChange={(e) => setSeverity(e.target.value)}
-                      className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                      className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#001d36] focus:outline-none cursor-pointer"
                     >
-                      <option value="Critical">🔴 Critical (Immediate Threat)</option>
-                      <option value="High">🟠 High (Prepare for Action)</option>
-                      <option value="Advisory">🟡 Advisory (Monitor Situation)</option>
+                      <option value="Critical">Critical (Immediate danger)</option>
+                      <option value="High">High (Prepare for action)</option>
+                      <option value="Advisory">Advisory (Monitor situation)</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-[#74777e] tracking-wider">Target Audience</label>
+                  <label className="text-[11px] font-medium text-[#43474d]">Target Audience</label>
                   <select 
                     value={target}
                     onChange={(e) => setTarget(e.target.value)}
-                    className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                    className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#001d36] focus:outline-none cursor-pointer"
                   >
-                    <option value="All Sector First Responders">All Sector First Responders</option>
-                    <option value="Civilian Public (SMS/App)">Civilian Public (SMS/App)</option>
-                    <option value="Command Center Staff Only">Command Center Staff Only</option>
-                    <option value="External Relief Agencies">External Relief Agencies</option>
+                    <option value="All Sector First Responders">All First Responders</option>
+                    <option value="Civilian Public (SMS/App)">Public Notification</option>
+                    <option value="Command Center Staff Only">Operations Staff Only</option>
+                    <option value="External Relief Agencies">Relief Agencies</option>
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-[#74777e] tracking-wider">Actionable Message</label>
+                  <label className="text-[11px] font-medium text-[#43474d]">Message Content</label>
                   <textarea 
                     required
                     rows="3"
                     value={broadcastMessage}
                     onChange={(e) => setBroadcastMessage(e.target.value)}
-                    placeholder="Enter detailed instructions for the target audience..."
-                    className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                    placeholder="Enter actionable instructions..."
+                    className="w-full border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#001d36] focus:outline-none"
                   ></textarea>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-1">
                   <button 
                     type="submit" 
                     disabled={dispatching}
-                    className="bg-red-600 text-white px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                    className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#17324d] transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-sm">send</span>
-                    {dispatching ? "Broadcasting..." : "Dispatch Emergency Broadcast"}
+                    <span className="material-symbols-outlined text-base">send</span>
+                    {dispatching ? "Sending..." : "Send Alert"}
                   </button>
                 </div>
               </form>
@@ -135,39 +135,43 @@ export const AlertsNotifications = () => {
           )}
 
           {/* Active Alerts List */}
-          <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-sm text-[#001d36]">Active & Recent Dispatches (Firestore Stream)</h3>
-              <span className="text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-2.5 py-0.5 rounded-full font-bold">
-                ● Live Firestore Connected
+          <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-3">
+            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-2.5">
+              <h3 className="font-semibold text-xs text-[#001d36]">Recent Alerts</h3>
+              <span className="text-xs text-[#74777e]">
+                {alertsList.length} total
               </span>
             </div>
 
-            <div className="space-y-3">
-              {alertsList.map((alt) => (
-                <div key={alt.id || alt.title} className="p-4 border border-[#E7DED2] rounded-lg bg-white flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        alt.severity === "Critical" ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
-                      }`}>
-                        {alt.severity}
-                      </span>
-                      <span className="font-mono text-xs text-[#74777e]">
-                        #{alt.id ? alt.id.slice(0, 8).toUpperCase() : "ALT-801"} • {alt.createdAt ? "Live Broadcast" : "Recently"}
-                      </span>
+            <div className="space-y-2.5">
+              {alertsList.length === 0 ? (
+                <div className="text-center py-6 text-xs text-[#74777e]">
+                  No active alerts.
+                </div>
+              ) : (
+                alertsList.map((alt) => (
+                  <div key={alt.id || alt.title} className="p-3.5 border border-[#E7DED2] rounded-lg bg-[#FAF7F2] flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                          alt.severity === "Critical" ? "bg-red-50 text-red-700 border border-red-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}>
+                          {alt.severity}
+                        </span>
+                        <span className="text-[11px] text-[#74777e]">
+                          {alt.createdAt ? "Recent" : "Logged"} · Target: {alt.target}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-xs text-[#001d36]">{alt.title}</h4>
+                      <p className="text-xs text-[#43474d]">{alt.message}</p>
                     </div>
-                    <h4 className="font-bold text-sm text-[#001d36]">{alt.title}</h4>
-                    <p className="text-xs text-[#74777e] mt-1">{alt.message || `Target Recipients: ${alt.target}`}</p>
-                  </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
-                      {alt.status || "Broadcasting"}
+                    <span className="bg-white border border-[#E7DED2] text-[#001d36] px-2.5 py-1 rounded text-[11px] font-medium">
+                      {alt.status || "Active"}
                     </span>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </main>

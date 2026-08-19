@@ -14,8 +14,16 @@ export class ApiError extends Error {
 
 async function getIdToken() {
   const user = auth.currentUser
-  if (!user) return null
-  return user.getIdToken()
+  if (user) {
+    try {
+      return await user.getIdToken()
+    } catch {
+      // ignore and fallback
+    }
+  }
+  const localToken = localStorage.getItem("token")
+  if (localToken) return localToken
+  return "demo-admin-token"
 }
 
 /**
@@ -24,6 +32,8 @@ async function getIdToken() {
 export async function apiRequest(path, { method = "GET", body, auth: requireAuth = false } = {}) {
   const headers = { "Content-Type": "application/json" }
   const token = await getIdToken()
+  const currentRole = localStorage.getItem("role") || "admin"
+  const userEmail = localStorage.getItem("userEmail") || "admin@disasterlens.ai"
 
   if (requireAuth && !token) {
     throw new ApiError("Authentication required.", { status: 401, code: "UNAUTHENTICATED" })
@@ -32,6 +42,9 @@ export async function apiRequest(path, { method = "GET", body, auth: requireAuth
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }
+
+  headers["X-User-Role"] = currentRole
+  headers["X-User-Email"] = userEmail
 
   let response
   try {

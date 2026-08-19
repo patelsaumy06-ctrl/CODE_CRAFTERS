@@ -14,7 +14,7 @@ export const SearchIntelligence = () => {
     "Gas leak",
     "Bridge",
     "Wildfire",
-    "Telemetry"
+    "Evacuation"
   ]
 
   const handleSearchSubmit = async (e) => {
@@ -25,7 +25,7 @@ export const SearchIntelligence = () => {
     setSearched(true)
     try {
       const searchResults = await searchIntelligence(query)
-      setResults(searchResults)
+      setResults(searchResults || [])
     } catch (error) {
       console.error("Search execution error:", error)
     } finally {
@@ -38,50 +38,52 @@ export const SearchIntelligence = () => {
       <Sidebar />
 
       <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
-        <Header title="Search Intelligence Database" />
+        <Header title="Search" />
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
 
-          {/* Search Hero Box */}
-          <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-8 shadow-sm space-y-4 max-w-4xl mx-auto text-center">
-            <span className="material-symbols-outlined text-4xl text-[#D98B3A]">manage_search</span>
-            <h2 className="text-xl font-bold text-[#001d36]">Natural Language Intelligence Search</h2>
-            <p className="text-xs text-[#74777e] max-w-md mx-auto">
-              Query multi-source disaster telemetry, satellite records, social stream archives, and historical incident logs in Cloud Firestore.
-            </p>
+          {/* Search Box */}
+          <div className="bg-white border border-[#E7DED2] rounded-lg p-5 md:p-6 space-y-3 max-w-3xl mx-auto">
+            <div>
+              <h2 className="text-base font-semibold text-[#001d36]">Search Incidents</h2>
+              <p className="text-xs text-[#74777e] mt-0.5">
+                Search incidents, reports, and alerts.
+              </p>
+            </div>
 
-            <form onSubmit={handleSearchSubmit} className="relative max-w-2xl mx-auto mt-4">
+            <form onSubmit={handleSearchSubmit} className="relative mt-2">
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ask DisasterLens AI e.g. 'flood', 'gas leak', 'bridge'..."
-                className="w-full bg-white border border-[#E7DED2] rounded-xl py-3 pl-12 pr-28 text-sm text-[#001d36] focus:outline-none focus:border-[#D98B3A] shadow-sm"
+                placeholder="Search by keyword..."
+                className="w-full bg-[#FAF7F2] border border-[#E7DED2] rounded-lg py-2.5 pl-10 pr-24 text-xs text-[#001d36] focus:outline-none focus:border-[#001d36]"
               />
-              <span className="material-symbols-outlined absolute left-4 top-3.5 text-[#74777e]">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#74777e] text-lg">search</span>
               <button 
                 type="submit"
                 disabled={searching}
-                className="absolute right-2 top-2 bg-[#001d36] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#17324d] transition-colors cursor-pointer disabled:opacity-50"
+                className="absolute right-1.5 top-1.5 bg-[#001d36] text-white px-3.5 py-1.5 rounded-md text-xs font-semibold hover:bg-[#17324d] transition-colors cursor-pointer disabled:opacity-50"
               >
                 {searching ? "Searching..." : "Search"}
               </button>
             </form>
 
             {/* Quick Search Chips */}
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <span className="text-[11px] font-bold text-[#74777e]">Popular Keywords:</span>
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] text-[#74777e]">Suggested:</span>
               {recentSearches.map((s, idx) => (
                 <button
                   key={idx}
                   onClick={() => {
                     setQuery(s)
+                    setSearching(true)
+                    setSearched(true)
                     searchIntelligence(s).then(res => {
-                      setResults(res)
-                      setSearched(true)
-                    })
+                      setResults(res || [])
+                    }).finally(() => setSearching(false))
                   }}
-                  className="bg-[#F7F3EC] border border-[#E7DED2] text-[11px] font-medium text-[#001d36] px-2.5 py-1 rounded-full hover:border-[#D98B3A] transition-colors cursor-pointer"
+                  className="bg-[#F7F3EC] border border-[#E7DED2] text-[11px] font-medium text-[#43474d] px-2.5 py-0.5 rounded hover:border-[#74777e] transition-colors cursor-pointer"
                 >
                   {s}
                 </button>
@@ -89,38 +91,37 @@ export const SearchIntelligence = () => {
             </div>
           </div>
 
-          {/* Results Summary & List Box */}
-          <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4 max-w-4xl mx-auto">
-            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-3">
-              <h3 className="font-bold text-sm text-[#001d36]">Firestore Query Search Index Results</h3>
-              <span className="text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-bold">
-                {searched ? `${results.length} Matches Found` : "Ready to Search"}
+          {/* Results Box */}
+          <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-3 max-w-3xl mx-auto">
+            <div className="flex justify-between items-center border-b border-[#E7DED2] pb-2.5">
+              <h3 className="font-semibold text-xs text-[#001d36]">Results</h3>
+              <span className="text-xs text-[#74777e]">
+                {searched ? `${results.length} found` : "Ready"}
               </span>
             </div>
 
             {searched && results.length === 0 ? (
-              <div className="text-center py-8 space-y-2">
-                <span className="material-symbols-outlined text-3xl text-gray-400">search_off</span>
-                <p className="text-xs text-[#74777e]">No exact matching records found for "{query}". Try keywords like "flood" or "sensor".</p>
+              <div className="text-center py-6 text-xs text-[#74777e]">
+                No matching records found for "{query}".
               </div>
             ) : results.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {results.map((res, idx) => (
-                  <div key={idx} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-1">
+                  <div key={idx} className="p-3 border border-[#E7DED2] rounded-lg bg-[#FAF7F2] space-y-1">
                     <div className="flex justify-between items-center">
-                      <span className="bg-[#001d36] text-white text-[10px] px-2 py-0.5 rounded uppercase font-bold font-mono">
-                        {res.type}
+                      <span className="text-[10px] uppercase font-semibold text-[#001d36]">
+                        {res.type || "Report"}
                       </span>
-                      <span className="text-xs font-mono text-green-700 font-bold">AI Conf: {res.confidence}%</span>
+                      <span className="text-[11px] font-medium text-slate-700">{res.confidence}% confidence</span>
                     </div>
-                    <h4 className="font-bold text-sm text-[#001d36]">{res.title}</h4>
-                    <p className="text-xs text-[#74777e] leading-relaxed">{res.snippet}</p>
+                    <h4 className="font-semibold text-xs text-[#001d36]">{res.title}</h4>
+                    <p className="text-xs text-[#43474d] leading-relaxed">{res.snippet}</p>
                   </div>
                 ))}
               </div>
             ) : (
               <p className="text-xs text-[#74777e]">
-                Enter a search prompt above to filter through historical and real-time disaster intelligence data points in Cloud Firestore.
+                Enter a search query above to filter incidents and incoming reports.
               </p>
             )}
           </div>

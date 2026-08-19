@@ -17,7 +17,7 @@ export const LiveIntelligenceFeed = () => {
 
   useEffect(() => {
     const unsubscribe = listenToIntelligenceFeed((data) => {
-      setFeedItems(data)
+      setFeedItems(data || [])
       setLoading(false)
     })
     return () => unsubscribe()
@@ -33,14 +33,14 @@ export const LiveIntelligenceFeed = () => {
         handle: "@field_observer",
         text: newText,
         urgency: "High",
-        sentiment: "Citizen Incident Ingest",
+        sentiment: "Field Report",
         confidence: 92
       })
       setNewText('')
-      alert("Telemetry post successfully ingested into Firestore stream!")
+      alert("Report submitted successfully.")
     } catch (e) {
       console.error("Error posting intelligence item:", e)
-      alert("Failed to post telemetry item to Firestore.")
+      alert("Failed to submit report.")
     } finally {
       setPosting(false)
     }
@@ -58,111 +58,121 @@ export const LiveIntelligenceFeed = () => {
       <Sidebar />
 
       <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
-        <Header title="Real-Time Intelligence Feed" />
+        <Header title="Incoming Reports" />
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
 
           {/* Report Ingestion Form */}
           {userRole !== "viewer" && (
-            <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-4 shadow-sm space-y-3">
-              <h3 className="font-bold text-xs text-[#001d36] uppercase tracking-wider flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#D98B3A] text-base">rss_feed</span>
-                Ingest Live Ground Intelligence to Firestore
+            <div className="bg-white border border-[#E7DED2] rounded-lg p-4 space-y-3">
+              <h3 className="font-semibold text-xs text-[#001d36] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">add_circle</span>
+                Submit Report
               </h3>
               
-              <form onSubmit={handlePostReport} className="flex gap-3 flex-wrap">
+              <form onSubmit={handlePostReport} className="flex gap-2.5 flex-wrap">
                 <input 
                   type="text" 
                   value={newText}
                   onChange={(e) => setNewText(e.target.value)}
-                  placeholder="Enter field observation or intelligence blurb..."
-                  className="flex-1 min-w-[250px] border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                  placeholder="Describe what you observed..."
+                  className="flex-1 min-w-[240px] border border-[#E7DED2] rounded-lg px-3 py-2 text-xs focus:border-[#001d36] focus:outline-none"
                   required
                 />
                 <select 
                   value={newSource}
                   onChange={(e) => setNewSource(e.target.value)}
-                  className="w-40 border border-[#E7DED2] rounded-lg p-2 text-xs focus:border-[#D98B3A]"
+                  className="w-36 border border-[#E7DED2] rounded-lg px-2.5 py-2 text-xs focus:border-[#001d36] focus:outline-none cursor-pointer"
                 >
-                  <option value="Citizen Stream">Citizen Stream</option>
-                  <option value="Drone Recon">Drone Recon</option>
-                  <option value="Satellite Array">Satellite Array</option>
-                  <option value="Field Reporter">Field Reporter</option>
+                  <option value="Citizen Stream">Citizen Report</option>
+                  <option value="Drone Recon">Aerial Survey</option>
+                  <option value="Field Reporter">Field Observer</option>
                   <option value="Sensor Alert">Sensor Alert</option>
                 </select>
                 <button 
                   type="submit" 
                   disabled={posting}
-                  className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#17324d] transition-colors disabled:opacity-50 cursor-pointer"
+                  className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#17324d] transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {posting ? "Ingesting..." : "Publish to Feed"}
+                  {posting ? "Submitting..." : "Submit"}
                 </button>
               </form>
             </div>
           )}
 
           {/* Source Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-[#E7DED2]">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase text-[#74777e]">Filter Source:</span>
+              <span className="text-xs font-medium text-[#74777e]">Filter:</span>
               <button 
                 onClick={() => setFilterSource("All")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "All" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer transition-colors ${
+                  filterSource === "All" ? "bg-[#001d36] text-white" : "bg-[#F7F3EC] text-[#43474d] hover:bg-[#E7DED2]"
+                }`}
               >
                 All Sources
               </button>
               <button 
                 onClick={() => setFilterSource("Social")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "Social" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer transition-colors ${
+                  filterSource === "Social" ? "bg-[#001d36] text-white" : "bg-[#F7F3EC] text-[#43474d] hover:bg-[#E7DED2]"
+                }`}
               >
-                Social Media Streams
+                Citizen Reports
               </button>
               <button 
                 onClick={() => setFilterSource("Sensors")}
-                className={`px-3 py-1 text-xs font-bold rounded-lg cursor-pointer ${filterSource === "Sensors" ? "bg-[#001d36] text-white" : "bg-[#FFFDF9] border border-[#E7DED2]"}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer transition-colors ${
+                  filterSource === "Sensors" ? "bg-[#001d36] text-white" : "bg-[#F7F3EC] text-[#43474d] hover:bg-[#E7DED2]"
+                }`}
               >
-                IoT Sensors & Telemetry
+                Sensors
               </button>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              FIRESTORE STREAM: ACTIVE ({feedItems.length} items)
+            <div className="text-xs text-[#74777e]">
+              Live · {feedItems.length} reports
             </div>
           </div>
 
-          {/* Feed Cards */}
-          <div className="space-y-4 max-w-4xl">
-            {filteredItems.map((item) => (
-              <div key={item.id || item.text} className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-[#001d36] text-white text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold">
-                      {item.source}
-                    </span>
-                    <span className="text-xs font-bold text-[#001d36]">{item.handle}</span>
-                  </div>
-                  <span className="text-xs font-mono text-[#74777e]">
-                    {item.createdAt ? "Live Stream" : "Just now"}
-                  </span>
-                </div>
-
-                <p className="text-xs text-[#1c1c18] font-medium leading-relaxed">
-                  {item.text}
-                </p>
-
-                {item.media && (
-                  <div className="h-44 rounded-lg overflow-hidden border border-[#E7DED2]">
-                    <img alt="Feed Media" src={item.media} className="w-full h-full object-cover" />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t border-[#E7DED2] text-xs">
-                  <span className="text-[#74777e]">Classifier Tag: <strong className="text-[#001d36]">{item.sentiment}</strong></span>
-                  <span className="font-mono text-green-700 font-bold">AI Conf: {item.confidence}%</span>
-                </div>
+          {/* Feed List */}
+          <div className="space-y-3 max-w-4xl">
+            {filteredItems.length === 0 ? (
+              <div className="bg-white border border-[#E7DED2] rounded-lg p-6 text-center text-xs text-[#74777e]">
+                No reports available for this filter.
               </div>
-            ))}
+            ) : (
+              filteredItems.map((item, idx) => (
+                <div key={item.id || idx} className="bg-white border border-[#E7DED2] rounded-lg p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-[#FAF7F2] border border-[#E7DED2] text-[#001d36] text-[10px] px-2 py-0.5 rounded font-medium">
+                        {item.source}
+                      </span>
+                      <span className="text-xs font-medium text-[#001d36]">{item.handle}</span>
+                    </div>
+                    <span className="text-[11px] text-[#74777e]">
+                      {item.createdAt ? "Recent" : "Just now"}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-[#1c1c18] leading-relaxed">
+                    {item.text}
+                  </p>
+
+                  {item.media && (
+                    <div className="h-40 rounded-lg overflow-hidden border border-[#E7DED2]">
+                      <img alt="Report media" src={item.media} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-[#74777e]">
+                    <span>Category: <strong className="text-[#001d36] font-medium">{item.sentiment}</strong></span>
+                    <span className="font-medium text-slate-700">Confidence: {item.confidence}%</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </main>
       </div>
