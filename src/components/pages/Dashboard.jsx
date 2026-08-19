@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
+import { DisasterMap } from '../common/DisasterMap'
 import { listenToIncidents, createIncident } from '../../services/incidentService'
 import { useAuth } from '../../context/AuthContext'
 
@@ -228,101 +229,17 @@ export const Dashboard = () => {
                 </h2>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-mono font-semibold bg-white border border-[#E7DED2] px-2 py-0.5 rounded text-[#001d36]">
-                    LAYERS: SATELLITE + SENSORS
+                    LIVE TELEMETRY &bull; {dbIncidents.length} NODES
                   </span>
                 </div>
               </div>
 
-              <div className="flex-1 relative bg-[#121d27] overflow-hidden min-h-[420px] flex items-center justify-center">
-                {/* Visual Grid Overlay */}
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-
-                {/* Map Graphic Background */}
-                <img
-                  alt="GIS Map Visualization"
-                  className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity"
-                  src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&q=80&w=1200"
+              <div className="flex-1 relative bg-[#121d27] p-2 flex flex-col justify-center">
+                <DisasterMap
+                  incidents={dbIncidents}
+                  height="440px"
+                  onSelectIncident={(inc) => navigate("/admin/incident", { state: { incidentId: inc.id } })}
                 />
-
-                {/* Dynamic Interactive Map Nodes from Firestore */}
-                {dbIncidents.length > 0 ? (
-                  dbIncidents.map((inc, idx) => {
-                    const lat = inc.location?.latitude || 34.0522
-                    const lng = inc.location?.longitude || -118.2437
-                    
-                    // Distribute nodes evenly across map bounds (20% to 80% top/left)
-                    const topPercent = 25 + ((idx * 23 + Math.abs(lat * 10)) % 55)
-                    const leftPercent = 20 + ((idx * 31 + Math.abs(lng * 10)) % 60)
-                    
-                    const isCritical = inc.severity === 'critical'
-                    const isHigh = inc.severity === 'high'
-
-                    return (
-                      <div 
-                        key={inc.id}
-                        className="absolute group cursor-pointer z-10 transition-all duration-300"
-                        style={{ top: `${topPercent}%`, left: `${leftPercent}%` }}
-                        onClick={() => navigate("/admin/incident")}
-                      >
-                        <div className="relative">
-                          {isCritical && (
-                            <span className="absolute -inset-2 bg-red-500 rounded-full animate-ping opacity-75"></span>
-                          )}
-                          <div className={`w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold shadow-lg ${
-                            isCritical ? 'bg-red-600' : isHigh ? 'bg-orange-500' : 'bg-blue-500'
-                          }`}>
-                            {isCritical ? '!' : idx + 1}
-                          </div>
-                        </div>
-                        <div className="hidden group-hover:block absolute top-6 left-1/2 -translate-x-1/2 bg-[#001d36] text-white text-[11px] p-2 rounded-lg shadow-xl border border-white/20 whitespace-nowrap z-30">
-                          <div className="font-bold">{inc.title}</div>
-                          <div className="text-[9px] text-[#D98B3A]">
-                            {inc.location?.address || 'Sector 4'} | {inc.severity ? inc.severity.toUpperCase() : 'MEDIUM'}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <>
-                    <div className="absolute top-1/3 left-1/4 group cursor-pointer" onClick={() => navigate("/admin/incident")}>
-                      <div className="relative">
-                        <span className="absolute -inset-2 bg-red-500 rounded-full animate-ping opacity-75"></span>
-                        <div className="w-5 h-5 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold shadow-lg">!</div>
-                      </div>
-                      <div className="hidden group-hover:block absolute top-6 left-1/2 -translate-x-1/2 bg-[#001d36] text-white text-[11px] p-2 rounded-lg shadow-xl border border-white/20 whitespace-nowrap z-20">
-                        <div className="font-bold">River Basin Flash Flood</div>
-                        <div className="text-[9px] text-red-300">Urgency: Critical | Conf: 94%</div>
-                      </div>
-                    </div>
-
-                    <div className="absolute top-1/2 left-3/5 group cursor-pointer" onClick={() => navigate("/admin/incident")}>
-                      <div className="w-4 h-4 bg-orange-500 rounded-full border-2 border-white shadow-lg"></div>
-                      <div className="hidden group-hover:block absolute top-6 left-1/2 -translate-x-1/2 bg-[#001d36] text-white text-[11px] p-2 rounded-lg shadow-xl border border-white/20 whitespace-nowrap z-20">
-                        <div className="font-bold">Sub-station Damage</div>
-                        <div className="text-[9px] text-orange-300">Urgency: High | Conf: 88%</div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Bottom Map Floating Legend */}
-                <div className="absolute bottom-4 left-4 right-4 bg-[#001d36]/90 backdrop-blur-md text-white border border-white/10 rounded-lg p-3 flex flex-wrap items-center justify-between gap-4 text-xs">
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Critical Node
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span> High Warning
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Monitoring
-                    </span>
-                  </div>
-                  <div className="font-mono text-[10px] text-white/70">
-                    COORD: 34.0522° N, 118.2437° W | REFRESH: Real-time
-                  </div>
-                </div>
               </div>
             </div>
 

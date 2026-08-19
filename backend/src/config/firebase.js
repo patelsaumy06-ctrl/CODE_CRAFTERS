@@ -13,12 +13,26 @@ function processData(newData, existingData = {}) {
   const result = { ...existingData };
   for (const [key, value] of Object.entries(newData)) {
     if (value && typeof value === "object") {
-      if (value._methodName === "serverTimestamp" || value.constructor?.name === "FieldValue" || value.isServerTimestamp) {
+      const cName = value.constructor?.name || "";
+      if (
+        value._methodName === "serverTimestamp" ||
+        cName === "FieldValue" ||
+        cName === "ServerTimestampTransform" ||
+        value.isServerTimestamp ||
+        (typeof value.isEqual === "function" && String(value).includes("serverTimestamp"))
+      ) {
         result[key] = new Date();
         continue;
       }
-      if (value._methodName === "increment") {
-        result[key] = (Number(result[key]) || 0) + (Number(value.operand) || 1);
+      if (value._methodName === "increment" || cName === "NumericIncrementTransform") {
+        const op = Number(value.operand ?? value._operand ?? 1);
+        result[key] = (Number(result[key]) || 0) + op;
+        continue;
+      }
+      if (value._methodName === "arrayUnion" || cName === "ArrayUnionTransform") {
+        const existingArr = Array.isArray(result[key]) ? result[key] : [];
+        const elements = Array.isArray(value.elements) ? value.elements : (Array.isArray(value._elements) ? value._elements : [value]);
+        result[key] = [...existingArr, ...elements];
         continue;
       }
     }
@@ -121,17 +135,27 @@ class Query {
     const map = this.store._getColl(this.collName);
     let items = Array.from(map.entries()).map(([id, data]) => ({ id, data: { ...data } }));
 
+    const toComparable = (v) => {
+      if (v instanceof Date) return v.getTime();
+      if (v && typeof v.toMillis === "function") return v.toMillis();
+      if (v && v._type === "timestamp" && typeof v.seconds === "number") return v.seconds * 1000;
+      return v;
+    };
+
     for (const { field, op, val } of this.filters) {
       items = items.filter(({ data }) => {
-        const fieldVal = getNestedValue(data, field);
-        if (op === "==") return fieldVal === val;
-        if (op === "!=") return fieldVal !== val;
-        if (op === ">") return fieldVal > val;
-        if (op === ">=") return fieldVal >= val;
-        if (op === "<") return fieldVal < val;
-        if (op === "<=") return fieldVal <= val;
-        if (op === "in") return Array.isArray(val) && val.includes(fieldVal);
-        if (op === "array-contains") return Array.isArray(fieldVal) && fieldVal.includes(val);
+        const rawFieldVal = getNestedValue(data, field);
+        const fieldVal = toComparable(rawFieldVal);
+        const compVal = toComparable(val);
+
+        if (op === "==") return fieldVal === compVal;
+        if (op === "!=") return fieldVal !== compVal;
+        if (op === ">") return fieldVal > compVal;
+        if (op === ">=") return fieldVal >= compVal;
+        if (op === "<") return fieldVal < compVal;
+        if (op === "<=") return fieldVal <= compVal;
+        if (op === "in") return Array.isArray(val) && val.includes(rawFieldVal);
+        if (op === "array-contains") return Array.isArray(rawFieldVal) && rawFieldVal.includes(val);
         return true;
       });
     }

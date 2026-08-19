@@ -47,9 +47,23 @@ export class ProcessingPipeline {
       const normalized = normalizer.normalize(sourceType, rawData);
       console.log(`[Pipeline:${pipelineId}] Normalized: "${normalized.title}"`);
 
-      // ─── Step 2a: LLM Analysis (optional enhancement) ───
+      // ─── Step 2a: LLM Analysis (ONLY for unstructured/ambiguous sources — Correction 3) ───
+      const ambiguousSources = [
+        SOURCE_TYPES.CITIZEN,
+        SOURCE_TYPES.SOCIAL,
+        SOURCE_TYPES.NEWS,
+        SOURCE_TYPES.REDDIT,
+        SOURCE_TYPES.GDELT,
+        SOURCE_TYPES.RELIEFWEB,
+        "citizen",
+        "social",
+        "news",
+        "reddit",
+        "gdelt",
+        "reliefweb",
+      ];
       let llmAnalysis = null;
-      if (isLLMEnabled()) {
+      if (isLLMEnabled() && ambiguousSources.includes(sourceType)) {
         try {
           llmAnalysis = await analyzeDisasterEvent(normalized);
           console.log(`[Pipeline:${pipelineId}] LLM Analysis: ${llmAnalysis.disasterType} (source: ${llmAnalysis.source})`);
@@ -136,13 +150,41 @@ export class ProcessingPipeline {
         `${severityResult.escalated ? " (ESCALATED)" : ""}`
       );
 
-      // ─── Step 7: Update incident in Firestore ───
+      // ─── Step 7: Verification Status & Firestore Update ───
+      const officialTypes = [
+        SOURCE_TYPES.USGS,
+        SOURCE_TYPES.EONET,
+        SOURCE_TYPES.GDACS,
+        SOURCE_TYPES.SENSOR,
+        SOURCE_TYPES.GOVERNMENT,
+        SOURCE_TYPES.SATELLITE,
+        "usgs",
+        "nasa_eonet",
+        "gdacs",
+        "sensor_reading",
+        "government_agency",
+        "satellite",
+      ];
+      const hasOfficialSource = sources.some((s) => officialTypes.includes(s.sourceType));
+
+      let verificationStatus = "unverified";
+      let isVerified = false;
+
+      if (sources.length >= 3 || (hasOfficialSource && sources.length >= 2) || (hasOfficialSource && confidenceResult.confidence >= 0.85)) {
+        verificationStatus = "verified";
+        isVerified = true;
+      } else if (sources.length >= 2 || confidenceResult.confidence >= 0.65) {
+        verificationStatus = "corroborated";
+        isVerified = false;
+      }
+
       const update = {
         severity: severityResult.severity,
         confidence: confidenceResult.confidence,
         confidenceFactors: confidenceResult.factors,
         severityFactors: severityResult.factors,
-        verified: sources.length >= 3,
+        verified: isVerified,
+        verificationStatus,
         sourceCount: sources.length,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -269,7 +311,18 @@ export class ProcessingPipeline {
       [SOURCE_TYPES.SATELLITE]: "Satellite Imagery",
       [SOURCE_TYPES.GOVERNMENT]: "Government Agency",
       [SOURCE_TYPES.REDDIT]: "Reddit Intelligence",
+      [SOURCE_TYPES.USGS]: "USGS Earthquake Feed",
+      [SOURCE_TYPES.EONET]: "NASA EONET Observatory",
+      [SOURCE_TYPES.GDACS]: "GDACS Global Alert Feed",
+      [SOURCE_TYPES.GDELT]: "GDELT Global News Monitor",
+      [SOURCE_TYPES.RELIEFWEB]: "ReliefWeb Situation Reports",
+      [SOURCE_TYPES.OPEN_METEO]: "Open-Meteo Weather Service",
       "reddit": "Reddit Intelligence",
+      "usgs": "USGS Earthquake Feed",
+      "nasa_eonet": "NASA EONET Observatory",
+      "gdacs": "GDACS Global Alert Feed",
+      "gdelt": "GDELT Global News Monitor",
+      "reliefweb": "ReliefWeb Situation Reports",
     };
     return labels[sourceType] || sourceType;
   }

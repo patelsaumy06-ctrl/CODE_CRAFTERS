@@ -43,17 +43,28 @@ export const SOURCE_TYPES = {
   SATELLITE: "satellite",
   GOVERNMENT: "government_agency",
   REDDIT: "reddit",
+  USGS: "usgs",
+  EONET: "nasa_eonet",
+  GDACS: "gdacs",
+  GDELT: "gdelt",
+  RELIEFWEB: "reliefweb",
+  OPEN_METEO: "open_meteo",
 };
 
 // ─── Source Reliability Weights (0-1) ───────────────────────────
 export const SOURCE_RELIABILITY = {
   [SOURCE_TYPES.SENSOR]: 0.95,
+  [SOURCE_TYPES.USGS]: 0.95,
+  [SOURCE_TYPES.EONET]: 0.95,
+  [SOURCE_TYPES.GDACS]: 0.95,
   [SOURCE_TYPES.GOVERNMENT]: 0.90,
   [SOURCE_TYPES.SATELLITE]: 0.92,
+  [SOURCE_TYPES.RELIEFWEB]: 0.85,
   [SOURCE_TYPES.NEWS]: 0.75,
   [SOURCE_TYPES.CITIZEN]: 0.60,
   [SOURCE_TYPES.REDDIT]: 0.55,
   [SOURCE_TYPES.SOCIAL]: 0.50,
+  [SOURCE_TYPES.GDELT]: 0.50,
 };
 
 // ─── Confidence Engine Weights ──────────────────────────────────

@@ -15,6 +15,10 @@ import intelligenceRoutes from "./routes/intelligence.js";
 import searchRoutes from "./routes/search.js";
 import analyticsRoutes from "./routes/analytics.js";
 import adminRoutes from "./routes/admin.js";
+import riskRoutes from "./routes/risk.js";
+import disastersRoutes from "./routes/disasters.js";
+import aiRoutes from "./routes/ai.js";
+import { ingestionWorker } from "./workers/ingestionWorker.js";
 
 // ─── Initialize Firebase Admin SDK ─────────────────────────────
 initFirebase();
@@ -95,6 +99,9 @@ app.use("/api/intelligence", apiLimiter, intelligenceRoutes);
 app.use("/api/search", apiLimiter, searchRoutes);
 app.use("/api/analytics", apiLimiter, analyticsRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
+app.use("/api/risk", apiLimiter, riskRoutes);
+app.use("/api/disasters", apiLimiter, disastersRoutes);
+app.use("/api/ai", apiLimiter, aiRoutes);
 
 // ─── API Documentation Route ────────────────────────────────────
 app.get("/api", (req, res) => {
@@ -167,7 +174,7 @@ app.use((err, req, res, _next) => {
 });
 
 // ─── Start Server ───────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           DisasterLens AI — Backend Server                  ║
@@ -179,6 +186,28 @@ app.listen(PORT, () => {
 ║  Environment: ${(process.env.NODE_ENV || "development").padEnd(44)}║
 ╚══════════════════════════════════════════════════════════════╝
   `);
+
+  // Start background ingestion worker asynchronously without blocking startup
+  ingestionWorker.start({ initialRun: process.env.NODE_ENV !== "test" });
 });
+
+// ─── Graceful Shutdown ─────────────────────────────────────────
+const gracefulShutdown = (signal) => {
+  console.log(`[Server] Received ${signal}. Shutting down gracefully...`);
+  ingestionWorker.stop();
+  server.close(() => {
+    console.log("[Server] HTTP server closed.");
+    process.exit(0);
+  });
+
+  // Force close if graceful shutdown exceeds 10 seconds
+  setTimeout(() => {
+    console.error("[Server] Forced shutdown after timeout.");
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 export default app;

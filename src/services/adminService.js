@@ -39,6 +39,19 @@ export const fetchAuditLogs = async () => {
 }
 
 /**
+ * Fetch public health & worker status from backend API
+ */
+export const fetchPublicHealth = async () => {
+  try {
+    const res = await api.get("/api/health")
+    return res || null
+  } catch (error) {
+    console.warn("Public health API unavailable:", error.message)
+    return null
+  }
+}
+
+/**
  * Fetch system health from backend admin API
  */
 export const fetchSystemHealth = async () => {

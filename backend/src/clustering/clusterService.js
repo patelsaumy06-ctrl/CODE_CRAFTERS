@@ -94,8 +94,14 @@ export class ClusterService {
     // Time proximity (weight: 0.3)
     const timeWeight = 0.3;
     totalWeight += timeWeight;
-    const eventTime = event.timestamp?.getTime?.() || Date.now();
-    const incidentTime = incident.createdAt?.toMillis?.() || incident.createdAt?.seconds * 1000 || Date.now();
+    const eventTime = event.timestamp instanceof Date ? event.timestamp.getTime() : (event.timestamp ? new Date(event.timestamp).getTime() : Date.now());
+    const incidentTime = incident.createdAt instanceof Date
+      ? incident.createdAt.getTime()
+      : (typeof incident.createdAt?.toMillis === "function"
+        ? incident.createdAt.toMillis()
+        : (incident.createdAt?.seconds
+          ? incident.createdAt.seconds * 1000
+          : (incident.createdAt ? new Date(incident.createdAt).getTime() : Date.now())));
     const timeDiff = Math.abs(eventTime - incidentTime);
     if (timeDiff <= CLUSTERING.MAX_TIME_WINDOW_MS) {
       score += timeWeight * (1 - timeDiff / CLUSTERING.MAX_TIME_WINDOW_MS);
@@ -137,12 +143,12 @@ export class ClusterService {
   }
 
   /**
-   * Merge an event into an existing incident — add source, update metadata.
+   * Merge an event into an existing incident — add source, update metadata & evidence.
    */
   async _mergeIntoIncident(db, incidentId, event) {
     const incidentRef = db.collection(COLLECTIONS.INCIDENTS).doc(incidentId);
 
-    // Add event as a source
+    // Add event as a source document
     await db.collection(COLLECTIONS.INCIDENT_SOURCES).add({
       incidentId,
       eventId: event.eventId,
@@ -155,11 +161,25 @@ export class ClusterService {
       addedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update incident source count
+    const safeTimestamp = (ts) => {
+      if (!ts) return new Date().toISOString();
+      const d = new Date(ts);
+      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+    };
+
+    const evidenceItem = {
+      source: event.sourceType,
+      sourceId: event.sourceId,
+      confidence: event.classification?.confidence || 0.5,
+      timestamp: safeTimestamp(event.timestamp),
+    };
+
+    // Update incident source count and evidence array
     await incidentRef.update({
       sourceCount: admin.firestore.FieldValue.increment(1),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       lastSourceType: event.sourceType,
+      evidence: admin.firestore.FieldValue.arrayUnion(evidenceItem),
     });
   }
 
@@ -168,6 +188,21 @@ export class ClusterService {
    */
   async _createNewIncident(db, event) {
     const classification = event.classification || {};
+
+    const safeTimestamp = (ts) => {
+      if (!ts) return new Date().toISOString();
+      const d = new Date(ts);
+      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+    };
+
+    const initialEvidence = [
+      {
+        source: event.sourceType,
+        sourceId: event.sourceId,
+        confidence: classification.confidence || 0.5,
+        timestamp: safeTimestamp(event.timestamp),
+      },
+    ];
 
     const incident = {
       title: event.title || "New Incident",
@@ -179,6 +214,7 @@ export class ClusterService {
       source: event.sourceType || "User Ingested",
       sourceUrl: event.metadata?.url || "",
       sourceCount: 1,
+      evidence: initialEvidence,
       verified: false,
       confidence: classification.confidence || 0.5,
       classificationReason: classification.classificationReason || "",

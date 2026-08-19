@@ -3,6 +3,7 @@ import { pipeline } from "../services/processingPipeline.js";
 import { verifyFirebaseConnection, getCredentialMode, isFirebaseConfigured } from "../config/firebase.js";
 import { getLLMStatus } from "../ai/llmService.js";
 import { getRedditStatus } from "../ingestion/reddit/redditService.js";
+import { ingestionWorker } from "../workers/ingestionWorker.js";
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.get("/", async (req, res) => {
   const firebase = await verifyFirebaseConnection();
   const llm = getLLMStatus();
   const reddit = getRedditStatus();
+  const workerStatus = ingestionWorker.getStatus();
 
   res.json({
     status: firebase.connected ? "ok" : "degraded",
@@ -39,6 +41,12 @@ router.get("/", async (req, res) => {
       enabled: reddit.enabled,
       configured: reddit.configured,
       subreddits: reddit.subreddits,
+    },
+    worker: {
+      running: workerStatus.running,
+      enabled: workerStatus.enabled,
+      startedAt: workerStatus.startedAt,
+      services: workerStatus.services,
     },
     pipeline: {
       processed: pipelineStats.processed,

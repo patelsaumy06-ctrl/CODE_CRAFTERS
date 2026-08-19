@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { SOURCE_TYPES } from "../config/constants.js";
 import { normalizeRedditPost } from "./reddit/redditNormalizer.js";
+import { externalNormalizer } from "./external/externalNormalizer.js";
 
 /**
  * Normalizes any source format into a common NormalizedEvent schema.
@@ -29,6 +30,22 @@ export class EventNormalizer {
       case SOURCE_TYPES.REDDIT:
       case "reddit":
         return normalizeRedditPost(rawData);
+      case SOURCE_TYPES.USGS:
+      case "usgs":
+        return externalNormalizer.normalizeUsgs(rawData);
+      case SOURCE_TYPES.EONET:
+      case "nasa_eonet":
+      case "eonet":
+        return externalNormalizer.normalizeEonet(rawData);
+      case SOURCE_TYPES.GDACS:
+      case "gdacs":
+        return externalNormalizer.normalizeGdacs(rawData);
+      case SOURCE_TYPES.GDELT:
+      case "gdelt":
+        return externalNormalizer.normalizeGdelt(rawData);
+      case SOURCE_TYPES.RELIEFWEB:
+      case "reliefweb":
+        return externalNormalizer.normalizeReliefWeb(rawData);
       default:
         return this._normalizeGeneric(sourceType, rawData);
     }

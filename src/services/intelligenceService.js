@@ -88,3 +88,48 @@ export const createIntelligenceItem = async (data) => {
   })
   return res.data
 }
+
+/**
+ * Fetch external disaster news & humanitarian reports from GDELT & ReliefWeb
+ */
+export const fetchDisasterNews = async (filters = {}) => {
+  try {
+    const params = new URLSearchParams()
+    if (filters.query) params.set("query", filters.query)
+    if (filters.location) params.set("location", filters.location)
+    if (filters.limit) params.set("limit", filters.limit)
+    const qs = params.toString()
+    const res = await api.get(`/api/disasters/news${qs ? `?${qs}` : ""}`)
+    return res.data || []
+  } catch (error) {
+    console.warn("Disaster news API unavailable:", error.message)
+    return []
+  }
+}
+
+/**
+ * Request AI Multi-Source Incident Verification
+ */
+export const verifyDisasterAI = async (payload) => {
+  try {
+    const res = await api.post("/api/ai/verify", payload)
+    return res.verification || null
+  } catch (error) {
+    console.warn("AI verification API unavailable:", error.message)
+    return null
+  }
+}
+
+/**
+ * Request Open-Meteo Weather and Flood Telemetry Risk Analysis
+ */
+export const analyzeRisk = async (payload) => {
+  try {
+    const res = await api.post("/api/risk/analyze", payload)
+    return res.analysis || null
+  } catch (error) {
+    console.warn("Risk analysis API unavailable:", error.message)
+    return null
+  }
+}
+

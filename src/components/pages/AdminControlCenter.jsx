@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
-import { listenToUsers, inviteAgencyUser, listenToAuditLogs, fetchSystemHealth } from '../../services/adminService'
+import { listenToUsers, inviteAgencyUser, listenToAuditLogs, fetchSystemHealth, fetchPublicHealth } from '../../services/adminService'
 
 export const AdminControlCenter = () => {
   const [activeTab, setActiveTab] = useState("roles")
   const [users, setUsers] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
   const [systemHealth, setSystemHealth] = useState([])
+  const [workerHealth, setWorkerHealth] = useState(null)
   const [loading, setLoading] = useState(true)
 
   // Invite modal state
@@ -24,6 +25,7 @@ export const AdminControlCenter = () => {
       setLoading(false)
     })
     fetchSystemHealth().then(setSystemHealth)
+    fetchPublicHealth().then(setWorkerHealth)
     return () => {
       unsubUsers()
       unsubAudit()
@@ -165,25 +167,54 @@ export const AdminControlCenter = () => {
 
           {activeTab === "apis" && (
             <div className="bg-[#FFFDF9] border border-[#E7DED2] rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#001d36]">Ingestion Connectors & External API Stream Latencies</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(systemHealth.length > 0 ? systemHealth : [{ service: "Backend API", status: "Unavailable", latency: "—", details: "Configure Firebase Admin credentials" }]).map((api, idx) => (
-                  <div key={idx} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-sm text-[#001d36]">{api.service}</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        api.status === "Healthy" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
-                      }`}>
-                        {api.status}
-                      </span>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-sm text-[#001d36]">Background Ingestion Worker & Connector Telemetry</h3>
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-bold">
+                  WORKER: {workerHealth?.worker?.running ? "RUNNING (ACTIVE POLLING)" : "IDLE"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {workerHealth?.worker?.services ? (
+                  Object.entries(workerHealth.worker.services).map(([key, svc]) => (
+                    <div key={key} className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2 shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-sm text-[#001d36]">{svc.name}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800">
+                          {svc.status || "IDLE"}
+                        </span>
+                      </div>
+                      <p className="font-mono text-[11px] text-[#74777e]">
+                        Interval: {Math.round(svc.intervalMs / 60000)} min &bull; Processed: <b>{svc.eventsProcessed || 0}</b>
+                      </p>
+                      <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1 border-t border-slate-100">
+                        <span>Success: {svc.successCount || 0} | Fail: {svc.failureCount || 0}</span>
+                        <span>{svc.lastRun ? new Date(svc.lastRun).toLocaleTimeString() : "Pending"}</span>
+                      </div>
                     </div>
-                    <p className="font-mono text-xs text-[#74777e]">{api.details || api.endpoint || "—"}</p>
-                    <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="text-[#74777e]">Status</span>
-                      <span className="font-mono font-bold text-green-700">{api.latency || "—"}</span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-full p-4 text-center text-xs text-[#74777e]">
+                    Loading worker connectors...
                   </div>
-                ))}
+                )}
+
+                {/* Open-Meteo On-Demand Card */}
+                <div className="p-4 border border-[#E7DED2] rounded-lg bg-white space-y-2 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-sm text-[#001d36]">Open-Meteo Weather & Flood</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
+                      ON-DEMAND
+                    </span>
+                  </div>
+                  <p className="font-mono text-[11px] text-[#74777e]">
+                    Cache: 15m (Weather) / 60m (Flood)
+                  </p>
+                  <div className="flex justify-between items-center text-[10px] text-[#74777e] pt-1 border-t border-slate-100">
+                    <span>Coordinates Rounding ~1.1km</span>
+                    <span>Active</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
