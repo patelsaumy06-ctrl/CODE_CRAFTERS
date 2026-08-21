@@ -350,14 +350,21 @@ export class ExternalNormalizer {
   normalizeGdelt(article) {
     const title = article.title || "GDELT Disaster News";
     const sourceEventId = String(article.url || article.id || `gdelt_${Date.now()}`);
-    const domain = article.domain || article.source || "news-source";
+    const domain = article.domain || article.source || "news-wire";
     const text = `${title}. Source: ${domain}.`;
 
     let timestamp = new Date();
     if (article.seendate) {
       const s = String(article.seendate);
-      const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) timestamp = parsed;
+      if (/^\d{14}$/.test(s)) {
+        const yr = s.slice(0, 4), mo = s.slice(4, 6), da = s.slice(6, 8);
+        const hr = s.slice(8, 10), mi = s.slice(10, 12), se = s.slice(12, 14);
+        const d = new Date(`${yr}-${mo}-${da}T${hr}:${mi}:${se}Z`);
+        if (!isNaN(d.getTime())) timestamp = d;
+      } else {
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) timestamp = parsed;
+      }
     }
 
     const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(
@@ -369,6 +376,7 @@ export class ExternalNormalizer {
     const eventTime = timestamp.toISOString();
     const sourceUpdatedAt = eventTime;
     const officialUrl = article.url || "";
+    const place = article.sourcecountry || article.location?.address || article.country || domain;
 
     const evidenceItem = {
       source: "GDELT",
@@ -378,7 +386,7 @@ export class ExternalNormalizer {
       source_timestamp: sourceUpdatedAt,
       retrieved_at: ingestedAt,
       relationship: "News Wire Corroboration",
-      confidence: 0.50,
+      confidence: 0.55,
     };
 
     return {
@@ -393,7 +401,7 @@ export class ExternalNormalizer {
       location: {
         latitude: hasCoords ? latitude : 0,
         longitude: hasCoords ? longitude : 0,
-        address: article.sourcecountry || article.location?.address || domain,
+        address: place,
         hasValidCoordinates: hasCoords,
       },
       source_status: SOURCE_STATUS.CURRENT,
@@ -413,6 +421,7 @@ export class ExternalNormalizer {
         domain,
         language: article.language || "English",
         sourceCountry: article.sourcecountry || "",
+        relevanceScore: article.relevanceScore || 0.7,
         verified: false,
       },
       raw: article,

@@ -5,6 +5,8 @@ import { fetchAlerts } from "../ingestion/external/gdacsService.js";
 import { fetchRecentEvents } from "../ingestion/external/eonetService.js";
 import { searchDisasterNews } from "../ingestion/external/gdeltService.js";
 import { fetchDisasterReports } from "../ingestion/external/reliefWebService.js";
+import { processedArticles } from "../utils/processedArticles.js";
+import { relevanceFilter } from "../ai/relevanceFilter.js";
 import { getDb } from "../config/firebase.js";
 import { COLLECTIONS } from "../config/constants.js";
 
@@ -31,7 +33,7 @@ export class IngestionWorker {
         gdacs: parseInt(process.env.GDACS_INTERVAL_MS, 10) || 5 * 60 * 1000,      // 5 min (GDACS refreshes ~6 min)
         usgs: parseInt(process.env.USGS_INTERVAL_MS, 10) || 5 * 60 * 1000,        // 5 min
         eonet: parseInt(process.env.EONET_INTERVAL_MS, 10) || 10 * 60 * 1000,     // 10 min
-        gdelt: parseInt(process.env.GDELT_INTERVAL_MS, 10) || 15 * 60 * 1000,     // 15 min
+        gdelt: parseInt(process.env.GDELT_INTERVAL_MS, 10) || 30 * 1000,          // 30 seconds
         reliefweb: parseInt(process.env.RELIEFWEB_INTERVAL_MS, 10) || 30 * 60 * 1000, // 30 min
       },
     };
@@ -94,7 +96,7 @@ export class IngestionWorker {
         sourceType: SOURCE_TYPES.GDELT,
         intervalMs: this.config.intervals.gdelt,
         freshnessWindowMs: FRESHNESS_CONFIG.GDELT_WINDOW_MS,
-        fetcher: () => searchDisasterNews({ maxRecords: 20 }),
+        fetcher: () => searchDisasterNews({ maxRecords: 15 }),
         status: "idle",
         lastRun: null,
         lastSuccess: null,
@@ -436,8 +438,29 @@ export class IngestionWorker {
 
     for (const rawItem of events) {
       try {
+        if (!rawItem) continue;
+
+        // Specific pre-pipeline filters for GDELT News
+        if (key === "gdelt") {
+          // 1. Duplicate Article Detection
+          const alreadyProcessed = await processedArticles.isProcessed(rawItem);
+          if (alreadyProcessed) {
+            continue;
+          }
+
+          // 2. Disaster Relevance Filtering
+          const relevance = relevanceFilter.evaluate(rawItem);
+          if (!relevance.isDisasterRelated) {
+            await processedArticles.markProcessed(rawItem, { skipped: true, reason: relevance.reason });
+            continue;
+          }
+
+          rawItem.relevanceScore = relevance.relevanceScore;
+          rawItem.disasterType = relevance.disasterType;
+        }
+
         // Extract source update timestamp if present
-        const itemTs = rawItem.pubDate || rawItem.toDate || rawItem.properties?.updated || rawItem.properties?.time;
+        const itemTs = rawItem.pubDate || rawItem.toDate || rawItem.seendate || rawItem.properties?.updated || rawItem.properties?.time;
         if (itemTs) {
           const parsed = new Date(itemTs).getTime();
           if (!isNaN(parsed) && (!latestSourceTimestamp || parsed > latestSourceTimestamp)) {
@@ -448,6 +471,9 @@ export class IngestionWorker {
         const result = await pipeline.process(svc.sourceType, rawItem);
         if (result && result.success) {
           processedCount++;
+          if (key === "gdelt") {
+            await processedArticles.markProcessed(rawItem, { processed: true, incidentId: result.incidentId });
+          }
         } else {
           errorCount++;
         }

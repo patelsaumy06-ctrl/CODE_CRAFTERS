@@ -26,7 +26,7 @@ describe("Phase 4 — Background Ingestion Worker", () => {
       assert.strictEqual(status.services.usgs.intervalMs, 300000);
       assert.strictEqual(status.services.gdacs.intervalMs, 300000);
       assert.strictEqual(status.services.eonet.intervalMs, 600000);
-      assert.strictEqual(status.services.gdelt.intervalMs, 900000);
+      assert.strictEqual(status.services.gdelt.intervalMs, 30000);
       assert.strictEqual(status.services.reliefweb.intervalMs, 1800000);
     });
 

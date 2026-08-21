@@ -4,6 +4,7 @@ import { Sidebar } from '../common/Sidebar'
 import { Header } from '../common/Header'
 import { VerificationBadge } from '../common/VerificationBadge'
 import { SeverityBadge } from '../common/SeverityBadge'
+import { PriorityBadge } from '../common/PriorityBadge'
 import { ConfidenceIndicator } from '../common/ConfidenceIndicator'
 import {
   normalizeVerificationStatus,
@@ -210,6 +211,7 @@ export const LiveIncident = () => {
                 {/* Badges & Meta */}
                 <div className="flex flex-wrap items-center gap-2">
                   <SeverityBadge severity={incSeverity} size="sm" pulse={incSeverity.toLowerCase() === 'critical'} />
+                  <PriorityBadge priority={incident.priority || "MEDIUM"} size="small" />
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#001d36] bg-[#FAF7F2] border border-[#E7DED2] px-2 py-0.5 rounded">
                     {incident.disasterType || 'Incident'}
                   </span>
@@ -364,6 +366,65 @@ export const LiveIncident = () => {
               </div>
 
               <div className="lg:col-span-4 space-y-5">
+                {/* Evidence Summary Card (Requirement 9) */}
+                <div className="bg-white border border-[#E7DED2] rounded-xl p-5 space-y-4 shadow-sm">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-[#001d36] flex items-center justify-between">
+                    <span>Evidence Intelligence</span>
+                    <span className="material-symbols-outlined text-sm text-[#D98B3A]">verified</span>
+                  </h3>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                      <span className="text-[#74777e] flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-blue-600">newspaper</span>
+                        News Articles:
+                      </span>
+                      <span className="font-mono font-bold text-[#001d36]">
+                        {incident.newsEvidenceCount ?? incident.evidenceBreakdown?.newsCount ?? evidenceList.filter((e) => (e.source || e.sourceType || '').toLowerCase().includes('gdelt') || (e.source || e.sourceType || '').toLowerCase().includes('news') || (e.source || e.sourceType || '').toLowerCase().includes('reliefweb')).length}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                      <span className="text-[#74777e] flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-emerald-600">policy</span>
+                        Official Sources:
+                      </span>
+                      <span className="font-mono font-bold text-[#001d36]">
+                        {incident.officialEvidenceCount ?? incident.evidenceBreakdown?.officialCount ?? evidenceList.filter((e) => (e.source || e.sourceType || '').toLowerCase().includes('usgs') || (e.source || e.sourceType || '').toLowerCase().includes('gdacs') || (e.source || e.sourceType || '').toLowerCase().includes('eonet') || (e.source || e.sourceType || '').toLowerCase().includes('sensor')).length}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                      <span className="text-[#74777e] flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-amber-600">forum</span>
+                        Other Sources:
+                      </span>
+                      <span className="font-mono font-bold text-[#001d36]">
+                        {incident.otherEvidenceCount ?? incident.evidenceBreakdown?.otherCount ?? Math.max(0, evidenceList.length - (incident.newsEvidenceCount || 0) - (incident.officialEvidenceCount || 0))}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-semibold text-[#74777e] uppercase tracking-wider">Status:</span>
+                        <VerificationBadge incident={incident} size="sm" />
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-semibold text-[#74777e] uppercase tracking-wider">Confidence:</span>
+                        <span className="font-mono font-bold text-[#001d36] text-xs">
+                          {confidenceVal !== null ? `${confidenceVal}%` : "70%"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-semibold text-[#74777e] uppercase tracking-wider">Priority:</span>
+                        <PriorityBadge priority={incident.priority || "HIGH"} size="small" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-white border border-[#E7DED2] rounded-xl p-4 space-y-3 shadow-sm">
                   <h3 className="font-bold text-xs uppercase tracking-wider text-[#001d36]">
                     Source Provenance

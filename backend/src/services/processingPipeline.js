@@ -3,6 +3,7 @@ import { classifier } from "../ai/classifier.js";
 import { analyzeDisasterEvent, isLLMEnabled } from "../ai/llmService.js";
 import { confidenceEngine } from "../ai/confidenceEngine.js";
 import { severityEngine } from "../ai/severityEngine.js";
+import { priorityEngine } from "../ai/priorityEngine.js";
 import { clusterService } from "../clustering/clusterService.js";
 import { alertEngine } from "../alerts/alertEngine.js";
 import { recommendationEngine } from "../recommendations/recommendationEngine.js";
@@ -164,8 +165,19 @@ export class ProcessingPipeline {
       const nowIso = new Date().toISOString();
       const sourceUpdatedAt = normalized.source_updated_at || (normalized.timestamp ? new Date(normalized.timestamp).toISOString() : nowIso);
 
+      // ─── Step 7.5: Priority Score & Level Calculation ───
+      const priorityResult = priorityEngine.calculate({
+        severity: severityResult.severity,
+        confidence: confidenceResult.confidence,
+        sourceCount: sources.length,
+        eventTime: normalized.event_time || sourceUpdatedAt,
+      });
+
       const update = {
         severity: severityResult.severity,
+        priority: priorityResult.priority,
+        priorityScore: priorityResult.priorityScore,
+        priorityFactors: priorityResult.factors,
         confidence: confidenceResult.confidence,
         confidencePercent: confidenceResult.confidencePercent,
         confidenceFactors: confidenceResult.factors,

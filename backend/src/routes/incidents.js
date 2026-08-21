@@ -3,6 +3,7 @@ import { getDb } from "../config/firebase.js";
 import { COLLECTIONS, ADMIN_ROLES, OPERATIONAL_ROLES, APPLICATION_STATUS, getRollingDateWindow, isWithinDateWindow } from "../config/constants.js";
 import { authenticateUser, optionalAuth, requireRole } from "../middleware/auth.js";
 import { ingestionWorker } from "../workers/ingestionWorker.js";
+import { priorityEngine } from "../ai/priorityEngine.js";
 import admin from "firebase-admin";
 
 const router = Router();
@@ -177,7 +178,7 @@ router.get("/", optionalAuth, async (req, res) => {
 
     const limit = Math.min(parseInt(limitStr, 10) || 100, 300);
     const offset = parseInt(offsetStr, 10) || 0;
-    const paginatedIncidents = filteredIncidents.slice(offset, offset + limit);
+    const paginatedIncidents = filteredIncidents.slice(offset, offset + limit).map(enrichIncidentData);
 
     // Provenance & Source Health
     const provenance = await ingestionWorker.getProvenanceStatus(days).catch(() => null);
@@ -315,9 +316,12 @@ router.get("/:id", optionalAuth, async (req, res) => {
 
     const recommendations = recsSnap.docs?.map((r) => ({ id: r.id, ...r.data() })) || [];
 
+    const enriched = enrichIncidentData(incidentData);
+
     res.json({
-      data: incidentData,
-      sources: sources.length > 0 ? sources : (incidentData.evidence || []),
+      data: enriched,
+      sources: sources.length > 0 ? sources : (enriched.evidence || []),
+      evidenceBreakdown: enriched.evidenceBreakdown,
       recommendations,
     });
   } catch (error) {
@@ -325,6 +329,77 @@ router.get("/:id", optionalAuth, async (req, res) => {
     res.status(500).json({ error: "FETCH_FAILED", message: error.message });
   }
 });
+
+/**
+ * Helper to compute derived news counts, source breakdown, and priority metadata
+ */
+function enrichIncidentData(inc) {
+  if (!inc) return inc;
+  const evidenceList = Array.isArray(inc.evidence) ? inc.evidence : [];
+
+  let newsCount = 0;
+  let officialCount = 0;
+  let otherCount = 0;
+
+  for (const item of evidenceList) {
+    const src = (item.source || item.sourceType || "").toLowerCase();
+    if (src.includes("gdelt") || src.includes("news") || src.includes("reliefweb") || src.includes("media") || src.includes("press")) {
+      newsCount++;
+    } else if (src.includes("usgs") || src.includes("gdacs") || src.includes("eonet") || src.includes("sensor") || src.includes("seismic") || src.includes("official") || src.includes("government")) {
+      officialCount++;
+    } else {
+      otherCount++;
+    }
+  }
+
+  // Fallback if evidence list was empty but primary source exists
+  if (evidenceList.length === 0 && inc.source) {
+    const src = inc.source.toLowerCase();
+    if (src.includes("gdelt") || src.includes("news") || src.includes("reliefweb")) {
+      newsCount = 1;
+    } else if (src.includes("usgs") || src.includes("gdacs") || src.includes("eonet") || src.includes("sensor")) {
+      officialCount = 1;
+    } else {
+      otherCount = 1;
+    }
+  }
+
+  const priorityCalc = priorityEngine.calculate({
+    severity: inc.severity,
+    confidence: inc.confidence,
+    sourceCount: inc.sourceCount || (newsCount + officialCount + otherCount) || 1,
+    eventTime: inc.event_time || inc.source_updated_at,
+  });
+
+  const priority = inc.priority || priorityCalc.priority;
+  const priorityScore = inc.priorityScore ?? priorityCalc.priorityScore;
+
+  return {
+    ...inc,
+    newsEvidenceCount: newsCount,
+    officialEvidenceCount: officialCount,
+    otherEvidenceCount: otherCount,
+    priority,
+    priorityScore,
+    evidenceSources: evidenceList.map((e) => ({
+      source: e.source || e.sourceType || "External Feed",
+      url: e.source_url || e.url || "",
+      event_time: e.event_time || e.source_timestamp,
+      relationship: e.relationship || "Corroborating Feed",
+      confidence: e.confidence || 0.7,
+    })),
+    evidenceBreakdown: {
+      newsCount,
+      officialCount,
+      otherCount,
+      totalCount: inc.sourceCount || (newsCount + officialCount + otherCount) || 1,
+      status: inc.verificationStatus || (inc.verified ? "VERIFIED" : "UNVERIFIED"),
+      confidencePercent: inc.confidencePercent || Math.round((inc.confidence || 0.7) * 100),
+      priority,
+      priorityScore,
+    },
+  };
+}
 
 /**
  * POST /api/incidents — Create incident (authenticated)

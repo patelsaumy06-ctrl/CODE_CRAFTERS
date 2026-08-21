@@ -1,5 +1,6 @@
 import { getDb } from "../config/firebase.js";
 import { COLLECTIONS, CLUSTERING, APPLICATION_STATUS, SOURCE_STATUS, VERIFICATION_STATUS } from "../config/constants.js";
+import { priorityEngine } from "../ai/priorityEngine.js";
 import admin from "firebase-admin";
 
 /**
@@ -278,12 +279,23 @@ export class ClusterService {
           },
         ];
 
+    const severity = classification.urgency === "critical" ? "critical" : (classification.urgency === "high" ? "high" : "medium");
+    const confidence = classification.confidence || 0.7;
+    const priorityResult = priorityEngine.calculate({
+      severity,
+      confidence,
+      sourceCount: 1,
+      eventTime,
+    });
+
     const incident = {
       title: event.title || "New Incident",
       description: event.text || event.description || "",
       disasterType: classification.disasterType || event.disasterType || "other",
       raw_event_type: event.raw_event_type || null,
-      severity: classification.urgency === "critical" ? "critical" : (classification.urgency === "high" ? "high" : "medium"),
+      severity,
+      priority: priorityResult.priority,
+      priorityScore: priorityResult.priorityScore,
       status: "active",
       source_status: event.source_status || SOURCE_STATUS.CURRENT,
       application_status: event.application_status || APPLICATION_STATUS.LIVE,

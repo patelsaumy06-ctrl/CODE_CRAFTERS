@@ -46,13 +46,14 @@ export class WeatherCorrelationService {
     const hasWeatherData = weatherRes.temperature !== null || weatherRes.precipitation !== null;
 
     if (!hasWeatherData && floodRes.riverDischarge === null) {
+      const isSeismic = disasterType === "earthquake" || disasterType === "tsunami";
       return {
         location: { latitude: lat, longitude: lon },
         disasterType,
         weather: null,
         flood: null,
         signals: [],
-        correlation: { relevance: "unavailable", score: 0 },
+        correlation: { relevance: isSeismic ? "neutral" : "unavailable", score: 0 },
         cacheHit,
         timestamp: new Date().toISOString(),
       };

@@ -23,6 +23,16 @@ export const SEVERITY = {
 
 export const SEVERITY_ORDER = { low: 0, medium: 1, high: 2, critical: 3 };
 
+// ─── Priority Levels ────────────────────────────────────────────
+export const PRIORITY = {
+  LOW: "LOW",
+  MEDIUM: "MEDIUM",
+  HIGH: "HIGH",
+  CRITICAL: "CRITICAL",
+};
+
+export const PRIORITY_ORDER = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+
 // ─── Status Enums ────────────────────────────────────────────────
 export const APPLICATION_STATUS = {
   LIVE: "LIVE",
@@ -194,6 +204,7 @@ export const COLLECTIONS = {
   RECOMMENDATIONS: "response_recommendations",
   AUDIT_LOGS: "audit_logs",
   SYSTEM_HEALTH: "system_health",
+  PROCESSED_ARTICLES: "processed_articles",
 };
 
 // ─── Disaster Keyword Maps (for deterministic classifier) ───────

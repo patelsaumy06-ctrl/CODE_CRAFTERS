@@ -5,6 +5,7 @@ import { Header } from '../common/Header'
 import { DisasterMap } from '../common/DisasterMap'
 import { VerificationBadge } from '../common/VerificationBadge'
 import { SeverityBadge } from '../common/SeverityBadge'
+import { PriorityBadge } from '../common/PriorityBadge'
 import { ConfidenceIndicator } from '../common/ConfidenceIndicator'
 import {
   normalizeVerificationStatus,
@@ -618,10 +619,11 @@ export const Dashboard = () => {
                           onClick={() => navigate(`/admin/incident/${inc.id || inc.source_event_id}`)}
                           className="p-3 border border-[#E7DED2] rounded-lg hover:border-[#001d36] hover:shadow-xs transition-all bg-white cursor-pointer space-y-2 group"
                         >
-                          {/* Row 1: Severity, Disaster Type, Verification Badge */}
+                          {/* Row 1: Severity, Disaster Type, Priority, Verification Badge */}
                           <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <SeverityBadge severity={sev} size="xs" />
+                              <PriorityBadge priority={inc.priority || "MEDIUM"} size="small" />
                               <span className="text-[10px] font-bold uppercase tracking-wider text-[#001d36] bg-[#FAF7F2] border border-[#E7DED2] px-1.5 py-0.5 rounded">
                                 {inc.disasterType || 'Incident'}
                               </span>
@@ -651,8 +653,13 @@ export const Dashboard = () => {
                             </div>
                           </div>
 
-                          {/* Row 4: Source Pills */}
+                          {/* Row 4: Source Pills & News Count */}
                           <div className="flex flex-wrap items-center gap-1 text-[9px] text-slate-500">
+                            {inc.newsEvidenceCount > 0 && (
+                              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-0.5">
+                                📰 {inc.newsEvidenceCount} News
+                              </span>
+                            )}
                             {sources.slice(0, 3).map((src, i) => (
                               <span key={i} className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-mono">
                                 {src}
