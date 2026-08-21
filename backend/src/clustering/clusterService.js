@@ -102,15 +102,26 @@ export class ClusterService {
     // Geographic proximity (weight: 0.4)
     const geoWeight = 0.4;
     totalWeight += geoWeight;
-    if (event.location && incident.location) {
+    const hasEventCoords = event.location && (event.location.latitude !== 0 || event.location.longitude !== 0);
+    const hasIncCoords = incident.location && (incident.location.latitude !== 0 || incident.location.longitude !== 0);
+
+    if (hasEventCoords && hasIncCoords) {
       const distKm = this._haversineKm(
         event.location.latitude,
         event.location.longitude,
-        incident.location.latitude || 0,
-        incident.location.longitude || 0
+        incident.location.latitude,
+        incident.location.longitude
       );
       if (distKm <= CLUSTERING.MAX_DISTANCE_KM) {
         score += geoWeight * (1 - distKm / CLUSTERING.MAX_DISTANCE_KM);
+      }
+    } else {
+      // If either location has no coordinates, match ONLY if they share non-generic address/place tokens
+      const addrA = (event.location?.address || "").toLowerCase().trim();
+      const addrB = (incident.location?.address || "").toLowerCase().trim();
+      const isGeneric = (s) => !s || s.includes("natural event") || s.includes("global") || s.includes("unspecified") || s.includes("incident");
+      if (!isGeneric(addrA) && !isGeneric(addrB) && (addrA.includes(addrB) || addrB.includes(addrA))) {
+        score += geoWeight * 0.5;
       }
     }
 
@@ -179,10 +190,16 @@ export class ClusterService {
     const nowIso = new Date().toISOString();
     const sourceUpdatedAt = event.source_updated_at || nowIso;
     const eventTime = event.event_time || sourceUpdatedAt;
+    const sourceId = String(event.source_event_id || event.sourceId || "");
+    const sourceName = event.source || event.sourceType;
+
+    const currentDoc = await incidentRef.get().catch(() => null);
+    const currentData = currentDoc?.data() || {};
+    const existingEvidence = Array.isArray(currentData.evidence) ? currentData.evidence : [];
 
     const evidenceItem = (event.evidence && event.evidence[0]) || {
-      source: event.source || event.sourceType,
-      source_event_id: String(event.source_event_id || event.sourceId),
+      source: sourceName,
+      source_event_id: sourceId,
       source_url: event.source_url || event.metadata?.url || "",
       event_time: eventTime,
       source_timestamp: sourceUpdatedAt,
@@ -190,6 +207,20 @@ export class ClusterService {
       relationship: "Synchronized disaster alert update",
       confidence: event.classification?.confidence || 0.9,
     };
+
+    // Deduplicate: update matching evidence item in place or append
+    let found = false;
+    const updatedEvidence = existingEvidence.map((ev) => {
+      if (String(ev.source_event_id || ev.sourceId) === sourceId && (ev.source || ev.sourceType) === sourceName) {
+        found = true;
+        return { ...ev, ...evidenceItem, retrieved_at: ev.retrieved_at || nowIso };
+      }
+      return ev;
+    });
+
+    if (!found) {
+      updatedEvidence.push(evidenceItem);
+    }
 
     const updates = {
       title: event.title,
@@ -199,7 +230,7 @@ export class ClusterService {
       source_status: event.source_status || SOURCE_STATUS.CURRENT,
       application_status: event.application_status || APPLICATION_STATUS.LIVE,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      evidence: admin.firestore.FieldValue.arrayUnion(evidenceItem),
+      evidence: updatedEvidence,
     };
 
     if (event.metadata?.alertLevel) updates.alertLevel = event.metadata.alertLevel;
@@ -216,23 +247,40 @@ export class ClusterService {
     const nowIso = new Date().toISOString();
     const sourceUpdatedAt = event.source_updated_at || nowIso;
     const eventTime = event.event_time || sourceUpdatedAt;
+    const sourceId = String(event.source_event_id || event.sourceId || "");
+    const sourceName = event.source || event.sourceType;
 
-    // Add event as a source document
-    await db.collection(COLLECTIONS.INCIDENT_SOURCES).add({
-      incidentId,
-      eventId: event.eventId,
-      sourceType: event.sourceType || event.source,
-      sourceId: event.source_event_id || event.sourceId,
-      text: event.text,
-      location: event.location,
-      timestamp: event.timestamp,
-      metadata: event.metadata || {},
-      addedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const currentDoc = await incidentRef.get().catch(() => null);
+    const currentData = currentDoc?.data() || {};
+    const existingEvidence = Array.isArray(currentData.evidence) ? currentData.evidence : [];
+
+    // Check if source record already exists in incident_sources collection
+    const existingSourceSnap = await db
+      .collection(COLLECTIONS.INCIDENT_SOURCES)
+      .where("incidentId", "==", incidentId)
+      .where("sourceId", "==", sourceId)
+      .limit(1)
+      .get()
+      .catch(() => ({ empty: true }));
+
+    if (existingSourceSnap.empty) {
+      // Add event as a source document
+      await db.collection(COLLECTIONS.INCIDENT_SOURCES).add({
+        incidentId,
+        eventId: event.eventId,
+        sourceType: sourceName,
+        sourceId,
+        text: event.text,
+        location: event.location,
+        timestamp: event.timestamp,
+        metadata: event.metadata || {},
+        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     const evidenceItem = (event.evidence && event.evidence[0]) || {
-      source: event.source || event.sourceType,
-      source_event_id: String(event.source_event_id || event.sourceId),
+      source: sourceName,
+      source_event_id: sourceId,
       source_url: event.source_url || event.metadata?.url || "",
       event_time: eventTime,
       source_timestamp: sourceUpdatedAt,
@@ -241,14 +289,28 @@ export class ClusterService {
       confidence: event.classification?.confidence || 0.85,
     };
 
+    // Deduplicate: update matching evidence item in place or append
+    let found = false;
+    const updatedEvidence = existingEvidence.map((ev) => {
+      if (String(ev.source_event_id || ev.sourceId) === sourceId && (ev.source || ev.sourceType) === sourceName) {
+        found = true;
+        return { ...ev, ...evidenceItem, retrieved_at: ev.retrieved_at || nowIso };
+      }
+      return ev;
+    });
+
+    if (!found) {
+      updatedEvidence.push(evidenceItem);
+    }
+
     // Update incident source count and evidence array
     await incidentRef.update({
-      sourceCount: admin.firestore.FieldValue.increment(1),
+      sourceCount: updatedEvidence.length,
       last_seen_at: nowIso,
       application_status: APPLICATION_STATUS.LIVE,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastSourceType: event.sourceType || event.source,
-      evidence: admin.firestore.FieldValue.arrayUnion(evidenceItem),
+      lastSourceType: sourceName,
+      evidence: updatedEvidence,
     });
   }
 

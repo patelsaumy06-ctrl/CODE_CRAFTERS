@@ -110,8 +110,19 @@ export const Dashboard = () => {
     return incSev === target
   }
 
+  // Deduplicate raw incidents by unique ID or source_event_id
+  const uniqueIncidentsMap = new Map()
+  for (const inc of dbIncidents) {
+    if (!inc) continue
+    const key = inc.id || inc.source_event_id || `${inc.source}_${inc.title}`
+    if (!uniqueIncidentsMap.has(key)) {
+      uniqueIncidentsMap.set(key, inc)
+    }
+  }
+  const deduplicatedIncidents = Array.from(uniqueIncidentsMap.values())
+
   // Filter incidents across Type, Region, and Severity
-  const filteredIncidents = dbIncidents.filter(inc => {
+  const filteredIncidents = deduplicatedIncidents.filter(inc => {
     if (!checkTypeMatch(inc, selectedDisaster)) return false
     if (!checkRegionMatch(inc, selectedLocation)) return false
     if (!checkSeverityMatch(inc, selectedUrgency)) return false

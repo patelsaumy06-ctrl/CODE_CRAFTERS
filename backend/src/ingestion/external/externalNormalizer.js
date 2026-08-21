@@ -40,6 +40,20 @@ export class ExternalNormalizer {
   }
 
   /**
+   * Recursively extract first valid coordinate point from GeoJSON coordinates array.
+   */
+  _extractCoordinates(coords) {
+    if (!Array.isArray(coords) || coords.length === 0) return { rawLon: 0, rawLat: 0 };
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      return { rawLon: coords[0], rawLat: coords[1] };
+    }
+    if (Array.isArray(coords[0])) {
+      return this._extractCoordinates(coords[0]);
+    }
+    return { rawLon: 0, rawLat: 0 };
+  }
+
+  /**
    * Map GDACS event type codes to standard DisasterLens types.
    */
   mapGdacsEventType(typeStr = "") {
@@ -270,20 +284,8 @@ export class ExternalNormalizer {
     const title = event.title || "NASA EONET Natural Event";
     const geometries = event.geometries || [];
     const latestGeom = geometries[geometries.length - 1] || {};
-    const coords = latestGeom.coordinates || [0, 0];
-
-    let rawLon = 0;
-    let rawLat = 0;
-    if (Array.isArray(coords)) {
-      if (typeof coords[0] === "number" && typeof coords[1] === "number") {
-        rawLon = coords[0];
-        rawLat = coords[1];
-      } else if (Array.isArray(coords[0]) && typeof coords[0][0] === "number") {
-        rawLon = coords[0][0];
-        rawLat = coords[0][1];
-      }
-    }
-
+    
+    const { rawLon, rawLat } = this._extractCoordinates(latestGeom.coordinates);
     const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(rawLat, rawLon);
     const categoryObj = (event.categories && event.categories[0]) || {};
     const categoryName = categoryObj.title || categoryObj.id || "Natural Event";

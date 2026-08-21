@@ -335,7 +335,20 @@ router.get("/:id", optionalAuth, async (req, res) => {
  */
 function enrichIncidentData(inc) {
   if (!inc) return inc;
-  const evidenceList = Array.isArray(inc.evidence) ? inc.evidence : [];
+  const rawEvidence = Array.isArray(inc.evidence) ? inc.evidence : [];
+
+  // Deduplicate evidence items by source + source_event_id / URL
+  const uniqueEvidenceMap = new Map();
+  for (const item of rawEvidence) {
+    if (!item) continue;
+    const src = item.source || item.sourceType || "Feed";
+    const id = item.source_event_id || item.sourceId || item.source_url || item.url || "ev";
+    const key = `${src.toLowerCase()}_${String(id).toLowerCase()}`;
+    if (!uniqueEvidenceMap.has(key)) {
+      uniqueEvidenceMap.set(key, item);
+    }
+  }
+  const evidenceList = Array.from(uniqueEvidenceMap.values());
 
   let newsCount = 0;
   let officialCount = 0;
@@ -367,7 +380,7 @@ function enrichIncidentData(inc) {
   const priorityCalc = priorityEngine.calculate({
     severity: inc.severity,
     confidence: inc.confidence,
-    sourceCount: inc.sourceCount || (newsCount + officialCount + otherCount) || 1,
+    sourceCount: evidenceList.length || 1,
     eventTime: inc.event_time || inc.source_updated_at,
   });
 
@@ -376,6 +389,8 @@ function enrichIncidentData(inc) {
 
   return {
     ...inc,
+    evidence: evidenceList,
+    sourceCount: evidenceList.length || inc.sourceCount || 1,
     newsEvidenceCount: newsCount,
     officialEvidenceCount: officialCount,
     otherEvidenceCount: otherCount,
@@ -392,7 +407,7 @@ function enrichIncidentData(inc) {
       newsCount,
       officialCount,
       otherCount,
-      totalCount: inc.sourceCount || (newsCount + officialCount + otherCount) || 1,
+      totalCount: evidenceList.length || 1,
       status: inc.verificationStatus || (inc.verified ? "VERIFIED" : "UNVERIFIED"),
       confidencePercent: inc.confidencePercent || Math.round((inc.confidence || 0.7) * 100),
       priority,

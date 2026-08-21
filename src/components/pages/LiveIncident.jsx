@@ -179,8 +179,7 @@ export const LiveIncident = () => {
   const sourceUpdatedAt = incident.source_updated_at || incident.timestamp || null
   const retrievedAt = incident.ingested_at || incident.last_seen_at || null
   const sources = extractIncidentSources(incident)
-
-  const evidenceList = Array.isArray(incident.evidence) && incident.evidence.length > 0
+  const rawEvidence = Array.isArray(incident.evidence) && incident.evidence.length > 0
     ? incident.evidence
     : [
         {
@@ -193,6 +192,19 @@ export const LiveIncident = () => {
           confidence: incident.confidence || 0.9,
         },
       ]
+
+  // Strictly deduplicate evidence items by unique source and ID / URL
+  const uniqueEvidenceMap = new Map()
+  for (const ev of rawEvidence) {
+    if (!ev) continue
+    const src = ev.source || ev.sourceType || "Authoritative Feed"
+    const id = ev.source_event_id || ev.sourceId || ev.source_url || ev.url || ev.id || "ev"
+    const key = `${String(src).toLowerCase()}_${String(id).toLowerCase()}`
+    if (!uniqueEvidenceMap.has(key)) {
+      uniqueEvidenceMap.set(key, ev)
+    }
+  }
+  const evidenceList = Array.from(uniqueEvidenceMap.values())
 
   const confidenceFactors = incident.confidenceFactors || []
 
