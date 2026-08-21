@@ -3,30 +3,40 @@ import { api } from "./apiClient"
 /**
  * Computes tactical analytics from backend API (replaces direct Firestore reads)
  */
-export const fetchAnalyticsData = async () => {
+export const fetchAnalyticsData = async (timeframe = "3d") => {
+  const days = timeframe === "24h" ? 1 : timeframe === "30d" ? 30 : 3
   try {
-    const [overview, trends, categories, severity] = await Promise.all([
-      api.get("/api/analytics/overview"),
-      api.get("/api/analytics/trends"),
-      api.get("/api/analytics/categories"),
-      api.get("/api/analytics/severity"),
+    const [overview, trends, categories, severity, sources] = await Promise.all([
+      api.get(`/api/analytics/overview?days=${days}`),
+      api.get(`/api/analytics/trends?days=${days}`),
+      api.get(`/api/analytics/categories?days=${days}`),
+      api.get(`/api/analytics/severity?days=${days}`),
+      api.get(`/api/analytics/sources?days=${days}`).catch(() => ({ data: {} })),
     ])
 
     return {
       kpis: overview.data?.kpis || [],
       timeline: trends.data?.timeline || [],
+      timelineLabels: trends.data?.labels || [],
       categories: categories.data || {},
       severity: severity.data || {},
+      sources: sources.data || {},
       pipelineStats: overview.data?.pipelineStats || {},
+      provenance: overview.data?.provenance || null,
+      date_window: overview.date_window || null,
     }
   } catch (error) {
     console.error("Error computing analytics metrics:", error)
     return {
       kpis: [],
       timeline: [],
+      timelineLabels: [],
       categories: {},
       severity: {},
+      sources: {},
       pipelineStats: {},
+      provenance: null,
+      date_window: null,
     }
   }
 }
@@ -34,8 +44,8 @@ export const fetchAnalyticsData = async () => {
 /**
  * Triggers official report export from live analytics data
  */
-export const exportAnalyticsPDF = async (timeframe = "7d") => {
-  const data = await fetchAnalyticsData()
+export const exportAnalyticsPDF = async (timeframe = "3d") => {
+  const data = await fetchAnalyticsData(timeframe)
   const kpiLines = (data.kpis || [])
     .map((k) => `- ${k.title}: ${k.value} (${k.change})`)
     .join("\n")
@@ -54,7 +64,10 @@ ${kpiLines || "- No live KPI data available"}
 2. SPATIOTEMPORAL CLUSTER ANALYSIS
 ${Object.entries(data.categories || {}).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- No category data"}
 
-Status: GENERATED FROM BACKEND ANALYTICS API
+3. MULTI-SOURCE INGESTION BREAKDOWN
+${Object.entries(data.sources || {}).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- No source breakdown data"}
+
+Status: GENERATED FROM BACKEND ANALYTICS API WITH FULL PROVENANCE
 ========================================================================
   `
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
