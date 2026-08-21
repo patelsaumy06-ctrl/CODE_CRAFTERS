@@ -7,15 +7,15 @@ import { clusterService } from "../clustering/clusterService.js";
 import { alertEngine } from "../alerts/alertEngine.js";
 import { recommendationEngine } from "../recommendations/recommendationEngine.js";
 import { getDb } from "../config/firebase.js";
-import { COLLECTIONS, SOURCE_TYPES } from "../config/constants.js";
+import { COLLECTIONS, SOURCE_TYPES, VERIFICATION_STATUS, APPLICATION_STATUS, SOURCE_STATUS } from "../config/constants.js";
 import admin from "firebase-admin";
 
 /**
- * Processing Pipeline Orchestrator
+ * Processing Pipeline Orchestrator — DisasterLens AI
  *
- * Full flow: Normalize → Classify → Cluster → Score Confidence →
- *           Calculate Severity → Check Alert Rules → Generate Recommendations →
- *           Write to Firestore
+ * Full live flow:
+ * Normalize → Classify → Cluster/Deduplicate → Traceable Confidence →
+ * Calculate Severity → Strict Verification Assessment → Write with Full Provenance
  */
 export class ProcessingPipeline {
   constructor() {
@@ -33,21 +33,21 @@ export class ProcessingPipeline {
    * Process a raw incoming event through the full pipeline.
    *
    * @param {string} sourceType - One of SOURCE_TYPES
-   * @param {Object} rawData - Raw event data from any source
+   * @param {Object} rawData - Raw event data from authoritative provider
    * @returns {{ success, incidentId, isNew, severity, confidence, alert, recommendations, processingTime }}
    */
   async process(sourceType, rawData) {
     const startTime = Date.now();
     const pipelineId = `PL_${Date.now()}`;
 
-    console.log(`[Pipeline:${pipelineId}] Starting — source: ${sourceType}`);
+    console.log(`[Pipeline:${pipelineId}] Starting live processing — source: ${sourceType}`);
 
     try {
-      // ─── Step 1: Normalize ───
+      // ─── Step 1: Normalize with full source provenance ───
       const normalized = normalizer.normalize(sourceType, rawData);
-      console.log(`[Pipeline:${pipelineId}] Normalized: "${normalized.title}"`);
+      console.log(`[Pipeline:${pipelineId}] Normalized: "${normalized.title}" (ID: ${normalized.source_event_id})`);
 
-      // ─── Step 2a: LLM Analysis (ONLY for unstructured/ambiguous sources — Correction 3) ───
+      // ─── Step 2a: LLM Analysis (Unstructured / text news sources only) ───
       const ambiguousSources = [
         SOURCE_TYPES.CITIZEN,
         SOURCE_TYPES.SOCIAL,
@@ -66,16 +66,14 @@ export class ProcessingPipeline {
       if (isLLMEnabled() && ambiguousSources.includes(sourceType)) {
         try {
           llmAnalysis = await analyzeDisasterEvent(normalized);
-          console.log(`[Pipeline:${pipelineId}] LLM Analysis: ${llmAnalysis.disasterType} (source: ${llmAnalysis.source})`);
         } catch (llmError) {
-          console.warn(`[Pipeline:${pipelineId}] LLM analysis failed, using deterministic classifier:`, llmError.message);
+          console.warn(`[Pipeline:${pipelineId}] LLM analysis note:`, llmError.message);
         }
       }
 
-      // ─── Step 2b: Deterministic Classifier (always runs as authoritative fallback) ───
+      // ─── Step 2b: Deterministic Classifier ───
       const classification = classifier.classify(normalized);
 
-      // Merge LLM insights if available and confident enough
       if (llmAnalysis && llmAnalysis.source === "llm" && llmAnalysis.confidence > classification.confidence) {
         classification.disasterType = llmAnalysis.disasterType;
         classification.confidence = Math.max(classification.confidence, llmAnalysis.confidence);
@@ -86,20 +84,15 @@ export class ProcessingPipeline {
       }
 
       normalized.classification = classification;
-      console.log(
-        `[Pipeline:${pipelineId}] Classified: ${classification.disasterType} ` +
-        `(confidence: ${(classification.confidence * 100).toFixed(1)}%, urgency: ${classification.urgency}` +
-        `${classification.llmEnhanced ? ", LLM-enhanced" : ""})`
-      );
 
       // ─── Step 3: Cluster — Match or create incident ───
       const clusterResult = await clusterService.matchOrCreate(normalized);
       console.log(
-        `[Pipeline:${pipelineId}] Clustered: incident=${clusterResult.incidentId} ` +
-        `(${clusterResult.isNew ? "NEW" : "MERGED"}, score: ${clusterResult.matchScore.toFixed(2)})`
+        `[Pipeline:${pipelineId}] Cluster Result: incident=${clusterResult.incidentId} ` +
+        `(${clusterResult.isNew ? "NEW" : "UPDATED/MERGED"}, matchScore: ${clusterResult.matchScore.toFixed(2)})`
       );
 
-      // ─── Step 4: Fetch incident sources for confidence/severity calculation ───
+      // ─── Step 4: Fetch incident sources for confidence & verification calculation ───
       const db = getDb();
       const sourcesSnap = await db
         .collection(COLLECTIONS.INCIDENT_SOURCES)
@@ -107,31 +100,32 @@ export class ProcessingPipeline {
         .get();
 
       const sources = sourcesSnap.docs.map((d) => d.data());
-      const hasSensor = sources.some((s) => s.sourceType === SOURCE_TYPES.SENSOR);
+      const hasSensor = sources.some(
+        (s) => s.sourceType === SOURCE_TYPES.SENSOR || s.sourceType === SOURCE_TYPES.USGS || s.sourceType === "usgs"
+      );
       const sensorMeta = normalized.metadata || {};
 
       // Calculate geographic spread
-      const lats = sources.map((s) => s.location?.latitude).filter(Boolean);
-      const lons = sources.map((s) => s.location?.longitude).filter(Boolean);
+      const lats = sources.map((s) => s.location?.latitude).filter((v) => typeof v === "number" && v !== 0);
+      const lons = sources.map((s) => s.location?.longitude).filter((v) => typeof v === "number" && v !== 0);
       const geoSpread = this._calcSpreadKm(lats, lons);
 
       // Calculate time spread
       const times = sources
-        .map((s) => s.timestamp?.toMillis?.() || s.timestamp?.getTime?.() || 0)
+        .map((s) => s.timestamp?.toMillis?.() || (s.timestamp instanceof Date ? s.timestamp.getTime() : new Date(s.timestamp || 0).getTime()))
         .filter((t) => t > 0);
       const timeSpread = times.length > 1 ? Math.max(...times) - Math.min(...times) : 0;
 
-      // ─── Step 5: Confidence Score ───
+      // ─── Step 5: Traceable Confidence Score ───
       const confidenceResult = confidenceEngine.calculate({
-        sources: sources.map((s) => ({ sourceType: s.sourceType })),
+        sources: sources.map((s) => ({ sourceType: s.sourceType, sourceId: s.sourceId })),
         hasSensorCorroboration: hasSensor,
         geographicSpreadKm: geoSpread,
         timeSpreadMs: timeSpread,
         classifierConfidence: classification.confidence,
       });
-      console.log(`[Pipeline:${pipelineId}] Confidence: ${(confidenceResult.confidence * 100).toFixed(1)}%`);
 
-      // ─── Step 6: Severity ───
+      // ─── Step 6: Severity Calculation ───
       const incidentDoc = await db.collection(COLLECTIONS.INCIDENTS).doc(clusterResult.incidentId).get();
       const currentIncident = incidentDoc.data() || {};
 
@@ -145,47 +139,46 @@ export class ProcessingPipeline {
         rateOfChange: clusterResult.isNew ? 0.3 : 0.6,
         currentSeverity: currentIncident.severity || null,
       });
-      console.log(
-        `[Pipeline:${pipelineId}] Severity: ${severityResult.severity}` +
-        `${severityResult.escalated ? " (ESCALATED)" : ""}`
-      );
 
-      // ─── Step 7: Verification Status & Firestore Update ───
-      const officialTypes = [
-        SOURCE_TYPES.USGS,
-        SOURCE_TYPES.EONET,
-        SOURCE_TYPES.GDACS,
-        SOURCE_TYPES.SENSOR,
-        SOURCE_TYPES.GOVERNMENT,
-        SOURCE_TYPES.SATELLITE,
-        "usgs",
-        "nasa_eonet",
-        "gdacs",
-        "sensor_reading",
-        "government_agency",
-        "satellite",
-      ];
-      const hasOfficialSource = sources.some((s) => officialTypes.includes(s.sourceType));
+      // ─── Step 7: Strict Verification Status (Rule 7) ───
+      const uniqueSourceTypes = new Set(sources.map((s) => s.sourceType)).size;
+      const isOfficialConfirmed =
+        (sourceType === SOURCE_TYPES.USGS && normalized.metadata?.status === "reviewed") ||
+        (sources.some((s) => s.sourceType === SOURCE_TYPES.GOVERNMENT || s.sourceType === "government_agency")) ||
+        (hasSensor && uniqueSourceTypes >= 2);
 
-      let verificationStatus = "unverified";
+      let verificationStatus = VERIFICATION_STATUS.UNVERIFIED;
       let isVerified = false;
 
-      if (sources.length >= 3 || (hasOfficialSource && sources.length >= 2) || (hasOfficialSource && confidenceResult.confidence >= 0.85)) {
-        verificationStatus = "verified";
+      if (isOfficialConfirmed) {
+        verificationStatus = VERIFICATION_STATUS.OFFICIALLY_CONFIRMED;
         isVerified = true;
-      } else if (sources.length >= 2 || confidenceResult.confidence >= 0.65) {
-        verificationStatus = "corroborated";
+      } else if (uniqueSourceTypes >= 2 || sources.length >= 2) {
+        verificationStatus = VERIFICATION_STATUS.CORROBORATED;
+        isVerified = false; // Corroborated, but not officially confirmed
+      } else {
+        verificationStatus = VERIFICATION_STATUS.UNVERIFIED;
         isVerified = false;
       }
+
+      const nowIso = new Date().toISOString();
+      const sourceUpdatedAt = normalized.source_updated_at || (normalized.timestamp ? new Date(normalized.timestamp).toISOString() : nowIso);
 
       const update = {
         severity: severityResult.severity,
         confidence: confidenceResult.confidence,
+        confidencePercent: confidenceResult.confidencePercent,
         confidenceFactors: confidenceResult.factors,
+        confidenceExplanation: confidenceResult.explanation,
         severityFactors: severityResult.factors,
         verified: isVerified,
         verificationStatus,
         sourceCount: sources.length,
+        source_status: normalized.source_status || SOURCE_STATUS.CURRENT,
+        application_status: APPLICATION_STATUS.LIVE,
+        event_time: normalized.event_time || sourceUpdatedAt,
+        source_updated_at: sourceUpdatedAt,
+        last_seen_at: nowIso,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -214,12 +207,8 @@ export class ProcessingPipeline {
             sensorExceedance: sensorMeta.exceedance || 0,
           }
         );
-
-        if (alertResult.shouldAlert) {
-          console.log(`[Pipeline:${pipelineId}] ALERT TRIGGERED: ${alertResult.reason}`);
-        }
       } catch (alertError) {
-        console.warn(`[Pipeline:${pipelineId}] Alert evaluation error:`, alertError.message);
+        console.warn(`[Pipeline:${pipelineId}] Alert check warning:`, alertError.message);
       }
 
       // ─── Step 9: Generate recommendations ───
@@ -229,11 +218,10 @@ export class ProcessingPipeline {
           disasterType: classification.disasterType,
           severity: severityResult.severity,
           location: normalized.location,
-          confidence: confidenceResult.confidence,
+          confidence: confidenceResult.confidence || 0.7,
           sourceCount: sources.length,
         });
 
-        // Persist recommendations
         await db.collection(COLLECTIONS.RECOMMENDATIONS).add({
           incidentId: clusterResult.incidentId,
           ...recommendations,
@@ -244,25 +232,26 @@ export class ProcessingPipeline {
       // ─── Step 10: Write to intelligence feed ───
       await db.collection(COLLECTIONS.INTELLIGENCE).add({
         source: this._sourceLabel(sourceType),
-        handle: normalized.sourceId,
+        handle: normalized.source_event_id || normalized.sourceId,
         text: normalized.text,
         urgency: classification.urgency === "critical" ? "Critical" : classification.urgency === "high" ? "High" : "Moderate",
         sentiment: this._sentimentLabel(classification),
         media: (normalized.media && normalized.media[0]) || null,
-        confidence: Math.round(confidenceResult.confidence * 100),
+        confidence: confidenceResult.confidencePercent || 70,
         incidentId: clusterResult.incidentId,
         disasterType: classification.disasterType,
-        processedBy: "DisasterLens AI Pipeline",
+        source_url: normalized.source_url || "",
+        processedBy: "DisasterLens Live Pipeline",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       // ─── Step 11: Audit log ───
       await db.collection(COLLECTIONS.AUDIT_LOGS).add({
-        action: clusterResult.isNew ? "INCIDENT_CREATED_BY_PIPELINE" : "INCIDENT_UPDATED_BY_PIPELINE",
-        details: `${sourceType} → ${classification.disasterType} (${severityResult.severity}) | Confidence: ${(confidenceResult.confidence * 100).toFixed(0)}%`,
-        user: "PROCESSING_PIPELINE",
+        action: clusterResult.isNew ? "INCIDENT_INGESTED_LIVE" : "INCIDENT_UPDATED_LIVE",
+        details: `${sourceType} (${normalized.source_event_id}) → ${classification.disasterType} [${severityResult.severity}] | ${verificationStatus}`,
+        user: "LIVE_PIPELINE",
         ip: "internal",
-        status: "Automated",
+        status: "Live Synchronized",
         pipelineId,
         incidentId: clusterResult.incidentId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -276,7 +265,7 @@ export class ProcessingPipeline {
       this.stats.lastProcessedAt = new Date().toISOString();
 
       const processingTime = Date.now() - startTime;
-      console.log(`[Pipeline:${pipelineId}] Complete in ${processingTime}ms`);
+      console.log(`[Pipeline:${pipelineId}] Completed in ${processingTime}ms (${verificationStatus}, ${confidenceResult.confidencePercent}%)`);
 
       return {
         success: true,
@@ -286,6 +275,7 @@ export class ProcessingPipeline {
         classification,
         severity: severityResult,
         confidence: confidenceResult,
+        verificationStatus,
         alert: alertResult,
         recommendations,
         processingTimeMs: processingTime,
@@ -304,34 +294,28 @@ export class ProcessingPipeline {
 
   _sourceLabel(sourceType) {
     const labels = {
-      [SOURCE_TYPES.CITIZEN]: "Citizen Report App",
-      [SOURCE_TYPES.NEWS]: "News Wire Service",
+      [SOURCE_TYPES.CITIZEN]: "Citizen Report",
+      [SOURCE_TYPES.NEWS]: "News Wire",
       [SOURCE_TYPES.SENSOR]: "IoT Sensor Network",
-      [SOURCE_TYPES.SOCIAL]: "Social Media Stream",
+      [SOURCE_TYPES.SOCIAL]: "Social Stream",
       [SOURCE_TYPES.SATELLITE]: "Satellite Imagery",
       [SOURCE_TYPES.GOVERNMENT]: "Government Agency",
       [SOURCE_TYPES.REDDIT]: "Reddit Intelligence",
-      [SOURCE_TYPES.USGS]: "USGS Earthquake Feed",
+      [SOURCE_TYPES.USGS]: "USGS Earthquake Hazard Feed",
       [SOURCE_TYPES.EONET]: "NASA EONET Observatory",
       [SOURCE_TYPES.GDACS]: "GDACS Global Alert Feed",
-      [SOURCE_TYPES.GDELT]: "GDELT Global News Monitor",
-      [SOURCE_TYPES.RELIEFWEB]: "ReliefWeb Situation Reports",
+      [SOURCE_TYPES.GDELT]: "GDELT News Monitor",
+      [SOURCE_TYPES.RELIEFWEB]: "ReliefWeb Reports",
       [SOURCE_TYPES.OPEN_METEO]: "Open-Meteo Weather Service",
-      "reddit": "Reddit Intelligence",
-      "usgs": "USGS Earthquake Feed",
-      "nasa_eonet": "NASA EONET Observatory",
-      "gdacs": "GDACS Global Alert Feed",
-      "gdelt": "GDELT Global News Monitor",
-      "reliefweb": "ReliefWeb Situation Reports",
     };
     return labels[sourceType] || sourceType;
   }
 
   _sentimentLabel(classification) {
-    if (classification.urgency === "critical") return "Panic / Crisis";
-    if (classification.urgency === "high") return "Alarm / Urgent";
-    if (classification.urgency === "moderate") return "Concern / Alert";
-    return "General Observation";
+    if (classification.urgency === "critical") return "Crisis";
+    if (classification.urgency === "high") return "Urgent";
+    if (classification.urgency === "moderate") return "Alert";
+    return "Advisory";
   }
 
   getStats() {

@@ -1,14 +1,33 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { fetchProvenance } from '../../services/incidentService'
 
 export const Header = ({ title = "Dashboard" }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
+  const [provenance, setProvenance] = useState(null)
 
   const userEmail = localStorage.getItem("userEmail") || "user@disasterlens.ai"
   const currentRole = localStorage.getItem("role") || "viewer"
+
+  useEffect(() => {
+    let isMounted = true
+    const checkStatus = () => {
+      fetchProvenance().then((res) => {
+        if (isMounted && res) {
+          setProvenance(res)
+        }
+      })
+    }
+    checkStatus()
+    const interval = setInterval(checkStatus, 8000)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [])
 
   const switchRole = (newRole) => {
     localStorage.setItem("role", newRole)
@@ -16,6 +35,9 @@ export const Header = ({ title = "Dashboard" }) => {
     setRoleMenuOpen(false)
     window.location.reload()
   }
+
+  const gdacsStatus = provenance?.sources?.gdacs?.status || "LIVE"
+  const usgsStatus = provenance?.sources?.usgs?.status || "LIVE"
 
   const navItems = [
     { name: "Dashboard", path: "/admin", icon: "dashboard" },
@@ -56,10 +78,27 @@ export const Header = ({ title = "Dashboard" }) => {
             <kbd className="hidden lg:inline-block bg-white text-[10px] text-[#74777e] border border-[#c3c6ce] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
           </div>
 
-          {/* Status */}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#43474d] bg-[#F7F3EC] border border-[#E7DED2] px-2.5 py-1 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-            <span className="font-medium">Connected</span>
+          {/* Dynamic Multi-Source Synchronization Badges (Rule 6) */}
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-[#43474d] bg-[#F7F3EC] border border-[#E7DED2] px-2 py-1 rounded-lg">
+              <span className={`w-2 h-2 rounded-full ${
+                gdacsStatus === "LIVE" ? "bg-green-500 animate-pulse" :
+                gdacsStatus === "SYNCING" ? "bg-blue-500 animate-spin" :
+                gdacsStatus === "STALE" ? "bg-amber-500" : "bg-red-500"
+              }`}></span>
+              <span className="font-semibold text-[#001d36] text-[11px]">GDACS:</span>
+              <span className="text-[11px] font-mono text-slate-700">{gdacsStatus}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs text-[#43474d] bg-[#F7F3EC] border border-[#E7DED2] px-2 py-1 rounded-lg">
+              <span className={`w-2 h-2 rounded-full ${
+                usgsStatus === "LIVE" ? "bg-green-500 animate-pulse" :
+                usgsStatus === "SYNCING" ? "bg-blue-500 animate-spin" :
+                usgsStatus === "STALE" ? "bg-amber-500" : "bg-red-500"
+              }`}></span>
+              <span className="font-semibold text-[#001d36] text-[11px]">USGS:</span>
+              <span className="text-[11px] font-mono text-slate-700">{usgsStatus}</span>
+            </div>
           </div>
 
           {/* Action Icons */}

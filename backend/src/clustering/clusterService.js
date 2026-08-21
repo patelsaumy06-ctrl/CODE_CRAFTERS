@@ -1,17 +1,18 @@
 import { getDb } from "../config/firebase.js";
-import { COLLECTIONS, CLUSTERING } from "../config/constants.js";
+import { COLLECTIONS, CLUSTERING, APPLICATION_STATUS, SOURCE_STATUS, VERIFICATION_STATUS } from "../config/constants.js";
 import admin from "firebase-admin";
 
 /**
- * Geo-Temporal Incident Clustering Service
+ * Geo-Temporal Incident Clustering & Deduplication Service
  *
  * Matches incoming events to existing incidents by:
- * 1. Geographic distance (haversine)
- * 2. Time window
- * 3. Disaster type
- * 4. Text similarity (keyword overlap)
+ * 1. Exact Source Event ID (authoritative match)
+ * 2. Geographic distance (haversine)
+ * 3. Time window
+ * 4. Disaster type
+ * 5. Text similarity (keyword overlap)
  *
- * Creates new incidents or merges events into existing clusters.
+ * Creates new incidents or updates existing clusters with authentic source provenance and distinct timestamps.
  */
 export class ClusterService {
   /**
@@ -22,9 +23,31 @@ export class ClusterService {
    */
   async matchOrCreate(event) {
     const db = getDb();
-    const now = Date.now();
+    const sourceId = event.source_event_id || event.sourceId;
+    const sourceType = event.source || event.sourceType;
 
-    // Fetch recent incidents of the same disaster type
+    // ─── Direct Deduplication: Check if exact source event ID already exists ───
+    if (sourceId && sourceType) {
+      try {
+        const exactMatchSnap = await db
+          .collection(COLLECTIONS.INCIDENTS)
+          .where("source_event_id", "==", String(sourceId))
+          .where("source", "==", String(sourceType))
+          .limit(1)
+          .get();
+
+        if (!exactMatchSnap.empty) {
+          const doc = exactMatchSnap.docs[0];
+          await this._updateExistingIncident(db, doc.id, event);
+          return { incidentId: doc.id, isNew: false, matchScore: 1.0 };
+        }
+      } catch (err) {
+        console.warn("[Cluster Service] Exact ID lookup fallback:", err.message);
+      }
+    }
+
+    // ─── Spatial-Temporal Matching ───
+    const now = Date.now();
     const cutoff = new Date(now - CLUSTERING.MAX_TIME_WINDOW_MS);
     let existingQuery;
 
@@ -37,7 +60,6 @@ export class ClusterService {
         .limit(50)
         .get();
     } catch {
-      // If composite index doesn't exist, fallback to simpler query
       existingQuery = await db
         .collection(COLLECTIONS.INCIDENTS)
         .where("disasterType", "==", event.classification?.disasterType || event.disasterType)
@@ -94,14 +116,20 @@ export class ClusterService {
     // Time proximity (weight: 0.3)
     const timeWeight = 0.3;
     totalWeight += timeWeight;
-    const eventTime = event.timestamp instanceof Date ? event.timestamp.getTime() : (event.timestamp ? new Date(event.timestamp).getTime() : Date.now());
-    const incidentTime = incident.createdAt instanceof Date
-      ? incident.createdAt.getTime()
-      : (typeof incident.createdAt?.toMillis === "function"
-        ? incident.createdAt.toMillis()
-        : (incident.createdAt?.seconds
-          ? incident.createdAt.seconds * 1000
-          : (incident.createdAt ? new Date(incident.createdAt).getTime() : Date.now())));
+    const eventTime = event.event_time
+      ? new Date(event.event_time).getTime()
+      : (event.timestamp instanceof Date ? event.timestamp.getTime() : (event.timestamp ? new Date(event.timestamp).getTime() : Date.now()));
+
+    const incidentTime = incident.event_time
+      ? new Date(incident.event_time).getTime()
+      : (incident.createdAt instanceof Date
+        ? incident.createdAt.getTime()
+        : (typeof incident.createdAt?.toMillis === "function"
+          ? incident.createdAt.toMillis()
+          : (incident.createdAt?.seconds
+            ? incident.createdAt.seconds * 1000
+            : (incident.createdAt ? new Date(incident.createdAt).getTime() : Date.now()))));
+
     const timeDiff = Math.abs(eventTime - incidentTime);
     if (timeDiff <= CLUSTERING.MAX_TIME_WINDOW_MS) {
       score += timeWeight * (1 - timeDiff / CLUSTERING.MAX_TIME_WINDOW_MS);
@@ -122,7 +150,7 @@ export class ClusterService {
       score += textWeight * (overlap / unionSize);
     }
 
-    return totalWeight > 0 ? score / totalWeight * totalWeight : 0;
+    return totalWeight > 0 ? (score / totalWeight) * totalWeight : 0;
   }
 
   /**
@@ -143,17 +171,57 @@ export class ClusterService {
   }
 
   /**
+   * Update an existing incident with latest live feed synchronization.
+   */
+  async _updateExistingIncident(db, incidentId, event) {
+    const incidentRef = db.collection(COLLECTIONS.INCIDENTS).doc(incidentId);
+    const nowIso = new Date().toISOString();
+    const sourceUpdatedAt = event.source_updated_at || nowIso;
+    const eventTime = event.event_time || sourceUpdatedAt;
+
+    const evidenceItem = (event.evidence && event.evidence[0]) || {
+      source: event.source || event.sourceType,
+      source_event_id: String(event.source_event_id || event.sourceId),
+      source_url: event.source_url || event.metadata?.url || "",
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: nowIso,
+      relationship: "Synchronized disaster alert update",
+      confidence: event.classification?.confidence || 0.9,
+    };
+
+    const updates = {
+      title: event.title,
+      description: event.text || event.description,
+      last_seen_at: nowIso,
+      source_updated_at: sourceUpdatedAt,
+      source_status: event.source_status || SOURCE_STATUS.CURRENT,
+      application_status: event.application_status || APPLICATION_STATUS.LIVE,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      evidence: admin.firestore.FieldValue.arrayUnion(evidenceItem),
+    };
+
+    if (event.metadata?.alertLevel) updates.alertLevel = event.metadata.alertLevel;
+    if (event.metadata?.alertScore !== undefined) updates.alertScore = event.metadata.alertScore;
+
+    await incidentRef.update(updates);
+  }
+
+  /**
    * Merge an event into an existing incident — add source, update metadata & evidence.
    */
   async _mergeIntoIncident(db, incidentId, event) {
     const incidentRef = db.collection(COLLECTIONS.INCIDENTS).doc(incidentId);
+    const nowIso = new Date().toISOString();
+    const sourceUpdatedAt = event.source_updated_at || nowIso;
+    const eventTime = event.event_time || sourceUpdatedAt;
 
     // Add event as a source document
     await db.collection(COLLECTIONS.INCIDENT_SOURCES).add({
       incidentId,
       eventId: event.eventId,
-      sourceType: event.sourceType,
-      sourceId: event.sourceId,
+      sourceType: event.sourceType || event.source,
+      sourceId: event.source_event_id || event.sourceId,
       text: event.text,
       location: event.location,
       timestamp: event.timestamp,
@@ -161,24 +229,24 @@ export class ClusterService {
       addedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    const safeTimestamp = (ts) => {
-      if (!ts) return new Date().toISOString();
-      const d = new Date(ts);
-      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
-    };
-
-    const evidenceItem = {
-      source: event.sourceType,
-      sourceId: event.sourceId,
-      confidence: event.classification?.confidence || 0.5,
-      timestamp: safeTimestamp(event.timestamp),
+    const evidenceItem = (event.evidence && event.evidence[0]) || {
+      source: event.source || event.sourceType,
+      source_event_id: String(event.source_event_id || event.sourceId),
+      source_url: event.source_url || event.metadata?.url || "",
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: nowIso,
+      relationship: "Independent Corroborating Feed",
+      confidence: event.classification?.confidence || 0.85,
     };
 
     // Update incident source count and evidence array
     await incidentRef.update({
       sourceCount: admin.firestore.FieldValue.increment(1),
+      last_seen_at: nowIso,
+      application_status: APPLICATION_STATUS.LIVE,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastSourceType: event.sourceType,
+      lastSourceType: event.sourceType || event.source,
       evidence: admin.firestore.FieldValue.arrayUnion(evidenceItem),
     });
   }
@@ -188,51 +256,72 @@ export class ClusterService {
    */
   async _createNewIncident(db, event) {
     const classification = event.classification || {};
+    const nowIso = new Date().toISOString();
+    const sourceUpdatedAt = event.source_updated_at || (event.timestamp ? new Date(event.timestamp).toISOString() : nowIso);
+    const eventTime = event.event_time || (event.timestamp ? new Date(event.timestamp).toISOString() : sourceUpdatedAt);
+    const sourceEventId = String(event.source_event_id || event.sourceId || "").trim();
+    const sourceName = event.source || event.sourceType || "External Feed";
+    const officialUrl = event.source_url || event.metadata?.url || "";
 
-    const safeTimestamp = (ts) => {
-      if (!ts) return new Date().toISOString();
-      const d = new Date(ts);
-      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
-    };
-
-    const initialEvidence = [
-      {
-        source: event.sourceType,
-        sourceId: event.sourceId,
-        confidence: classification.confidence || 0.5,
-        timestamp: safeTimestamp(event.timestamp),
-      },
-    ];
+    const initialEvidence = Array.isArray(event.evidence) && event.evidence.length > 0
+      ? event.evidence
+      : [
+          {
+            source: sourceName,
+            source_event_id: sourceEventId,
+            source_url: officialUrl,
+            event_time: eventTime,
+            source_timestamp: sourceUpdatedAt,
+            retrieved_at: nowIso,
+            relationship: "Primary Authoritative Alert Feed",
+            confidence: classification.confidence || 0.95,
+          },
+        ];
 
     const incident = {
       title: event.title || "New Incident",
-      description: event.text || "",
-      disasterType: classification.disasterType || "other",
-      severity: classification.urgency === "critical" ? "critical" : "medium",
-      status: "reported",
-      location: event.location || { latitude: 0, longitude: 0, address: "" },
-      source: event.sourceType || "User Ingested",
-      sourceUrl: event.metadata?.url || "",
+      description: event.text || event.description || "",
+      disasterType: classification.disasterType || event.disasterType || "other",
+      raw_event_type: event.raw_event_type || null,
+      severity: classification.urgency === "critical" ? "critical" : (classification.urgency === "high" ? "high" : "medium"),
+      status: "active",
+      source_status: event.source_status || SOURCE_STATUS.CURRENT,
+      application_status: event.application_status || APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      location: event.location || { latitude: 0, longitude: 0, address: "Global Region" },
+      source: sourceName,
+      source_event_id: sourceEventId,
+      episode_id: event.episode_id || null,
+      source_url: officialUrl,
+      sourceUrl: officialUrl,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: event.ingested_at || nowIso,
+      last_seen_at: event.last_seen_at || nowIso,
       sourceCount: 1,
       evidence: initialEvidence,
       verified: false,
-      confidence: classification.confidence || 0.5,
+      verificationStatus: VERIFICATION_STATUS.UNVERIFIED,
+      confidence: classification.confidence || 0.7,
+      confidenceFactors: [],
+      confidenceExplanation: "Initial ingestion from authoritative source feed.",
       classificationReason: classification.classificationReason || "",
       matchedKeywords: classification.matchedKeywords || [],
+      alertLevel: event.metadata?.alertLevel || null,
+      alertScore: event.metadata?.alertScore || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdBy: event.sourceId || "ingestion-pipeline",
+      createdBy: sourceEventId || "ingestion-pipeline",
       reportedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection(COLLECTIONS.INCIDENTS).add(incident);
 
-    // Save initial source
+    // Save initial source document
     await db.collection(COLLECTIONS.INCIDENT_SOURCES).add({
       incidentId: docRef.id,
       eventId: event.eventId,
-      sourceType: event.sourceType,
-      sourceId: event.sourceId,
+      sourceType: sourceName,
+      sourceId: sourceEventId,
       text: event.text,
       location: event.location,
       timestamp: event.timestamp,

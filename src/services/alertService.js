@@ -1,25 +1,5 @@
 import { api } from "./apiClient"
 
-/** Demo-only seed alerts — marked with isDemo: true */
-export const DEMO_ALERTS = [
-  {
-    title: "[DEMO] Sector 4 Emergency Evacuation Order",
-    message: "Immediate evacuation ordered for Sector 4 due to levee breach risk.",
-    target: "All Responders & Local Cell Towers",
-    severity: "Critical",
-    status: "Broadcasting",
-    isDemo: true,
-  },
-  {
-    title: "[DEMO] Sub-station B Safety Perimeter",
-    message: "Establish 500m perimeter around Sub-station B. Hazmat teams dispatched.",
-    target: "Fire & Hazmat Units",
-    severity: "High",
-    status: "Active",
-    isDemo: true,
-  },
-]
-
 /**
  * Creates a new emergency broadcast alert via backend API
  */
@@ -37,7 +17,7 @@ export const createAlert = async (alertData) => {
 }
 
 /**
- * Fetch alerts from backend API
+ * Fetch live alerts from backend API
  */
 export const fetchAlerts = async () => {
   try {
@@ -45,7 +25,7 @@ export const fetchAlerts = async () => {
     return res.data || []
   } catch (error) {
     console.warn("Alerts API unavailable:", error.message)
-    return DEMO_ALERTS
+    return []
   }
 }
 
@@ -58,10 +38,11 @@ export const listenToAlerts = (callback) => {
   const fetchAndNotify = () => {
     fetchAlerts()
       .then((alerts) => {
-        if (isSubscribed) callback(alerts.length > 0 ? alerts : DEMO_ALERTS)
+        if (isSubscribed) callback(alerts || [])
       })
-      .catch(() => {
-        if (isSubscribed) callback(DEMO_ALERTS)
+      .catch((err) => {
+        console.error("Error fetching live alerts:", err)
+        if (isSubscribed) callback([])
       })
   }
 

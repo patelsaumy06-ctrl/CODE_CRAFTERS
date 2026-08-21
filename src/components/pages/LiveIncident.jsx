@@ -40,8 +40,9 @@ export const LiveIncident = () => {
           setLoading(false)
         })
     } else {
-      unsubscribe = listenToIncidents((incidents) => {
-        if (incidents && incidents.length > 0) {
+      unsubscribe = listenToIncidents((res) => {
+        const incidents = res.incidents || []
+        if (incidents.length > 0) {
           setIncident(incidents[0])
         }
         setLoading(false)
@@ -53,17 +54,18 @@ export const LiveIncident = () => {
   const handleToggleVerify = async () => {
     if (!incident || !incident.id) return
     const newVerified = !incident.verified
+    const newStatus = newVerified ? "OFFICIALLY_CONFIRMED" : "UNVERIFIED"
     try {
       await updateIncident(incident.id, {
         verified: newVerified,
         status: newVerified ? "verified" : "investigating",
-        verificationStatus: newVerified ? "verified" : "unverified",
+        verificationStatus: newStatus,
       })
       setIncident((prev) => ({
         ...prev,
         verified: newVerified,
         status: newVerified ? "verified" : "investigating",
-        verificationStatus: newVerified ? "verified" : "unverified",
+        verificationStatus: newStatus,
       }))
     } catch (e) {
       console.error("Error updating incident status:", e)
@@ -75,8 +77,8 @@ export const LiveIncident = () => {
     if (!incident) return
     setAnalyzingWeather(true)
     try {
-      const lat = Number(incident.location?.latitude ?? 19.076)
-      const lon = Number(incident.location?.longitude ?? 72.8777)
+      const lat = Number(incident.location?.latitude ?? 0)
+      const lon = Number(incident.location?.longitude ?? 0)
       const analysis = await analyzeRisk({
         latitude: lat,
         longitude: lon,
@@ -101,7 +103,7 @@ export const LiveIncident = () => {
         incidentId: incident.id,
         text: `${incident.title}. ${incident.description || ""}`,
         location: incident.location,
-        sources: incident.evidence || [{ sourceType: incident.source || "sensor", text: incident.title }],
+        sources: incident.evidence || [{ sourceType: incident.source || "authoritative_feed", text: incident.title }],
       })
       if (res) {
         setAiVerification(res)
@@ -113,17 +115,73 @@ export const LiveIncident = () => {
     }
   }
 
-  const incTitle = incident?.title || "Incident Report"
-  const incSeverity = (incident?.severity || "medium").toLowerCase()
-  const incLocation = incident?.location?.address || `${Number(incident?.location?.latitude ?? 19.07).toFixed(2)}°, ${Number(incident?.location?.longitude ?? 72.87).toFixed(2)}°`
-  const incDesc = incident?.description || "Incident logged into system."
-  const isVerified = incident?.verified || incident?.verificationStatus === "verified"
-  const confidencePct = Math.round((Number(incident?.confidence) <= 1 ? Number(incident?.confidence) * 100 : Number(incident?.confidence)) || 85)
-  const evidenceList = Array.isArray(incident?.evidence) && incident.evidence.length > 0
+  if (loading) {
+    return (
+      <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
+        <Sidebar />
+        <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
+          <Header title="Incident Details" />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-xs text-[#74777e] flex items-center gap-2">
+              <span className="material-symbols-outlined animate-spin">sync</span>
+              Loading live incident record...
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!incident) {
+    return (
+      <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
+        <Sidebar />
+        <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen relative overflow-hidden">
+          <Header title="Incident Details" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-3">
+            <div className="text-sm font-bold text-[#001d36]">Incident Not Found</div>
+            <p className="text-xs text-[#74777e]">No active live incident record matches this selection.</p>
+            <button
+              onClick={() => navigate("/admin")}
+              className="bg-[#001d36] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#17324d] cursor-pointer"
+            >
+              Return to Live Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const incTitle = incident.title || "Live Disaster Incident"
+  const incSeverity = (incident.severity || "medium").toLowerCase()
+  const lat = Number(incident.location?.latitude ?? 0)
+  const lon = Number(incident.location?.longitude ?? 0)
+  const incLocation = incident.location?.address || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`
+  const incDesc = incident.description || "Authoritative disaster feed update."
+  const isVerified = incident.verified || incident.verificationStatus === "OFFICIALLY_CONFIRMED" || incident.verificationStatus === "verified"
+  const verificationStatus = incident.verificationStatus || (isVerified ? "OFFICIALLY_CONFIRMED" : "UNVERIFIED")
+
+  const confidencePct = incident.confidencePercent ?? (incident.confidence !== null && incident.confidence !== undefined ? Math.round(Number(incident.confidence) <= 1 ? Number(incident.confidence) * 100 : Number(incident.confidence)) : null)
+  const officialUrl = incident.source_url || incident.sourceUrl || ""
+  const sourceUpdatedAt = incident.source_updated_at || incident.timestamp || null
+  const retrievedAt = incident.ingested_at || incident.last_seen_at || null
+
+  const evidenceList = Array.isArray(incident.evidence) && incident.evidence.length > 0
     ? incident.evidence
     : [
-        { source: incident?.source || "Report Ingest", confidence: 0.90, timestamp: new Date().toISOString() },
+        {
+          source: incident.source || "GDACS",
+          source_event_id: incident.source_event_id || incident.id,
+          source_url: officialUrl,
+          source_timestamp: sourceUpdatedAt,
+          retrieved_at: retrievedAt,
+          relationship: "Primary Authoritative Alert Feed",
+          confidence: incident.confidence || 0.9,
+        },
       ]
+
+  const confidenceFactors = incident.confidenceFactors || []
 
   return (
     <div className="bg-[#F7F3EC] text-[#1c1c18] font-sans flex h-screen overflow-hidden antialiased">
@@ -134,16 +192,25 @@ export const LiveIncident = () => {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
           {/* Incident Header Card */}
-          <div className="bg-white border border-[#E7DED2] rounded-lg p-5 flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white border border-[#E7DED2] rounded-xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase border ${
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
                   incSeverity === 'critical' ? 'bg-red-50 text-red-700 border-red-200' :
                   incSeverity === 'high' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                   'bg-slate-50 text-slate-700 border-slate-200'
                 }`}>
                   {incSeverity}
                 </span>
+
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                  verificationStatus === "OFFICIALLY_CONFIRMED" ? "bg-green-50 text-green-800 border-green-200" :
+                  verificationStatus === "CORROBORATED" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                  "bg-amber-50 text-amber-800 border-amber-200"
+                }`}>
+                  {verificationStatus}
+                </span>
+
                 <span className="text-xs text-[#74777e]">📍 {incLocation}</span>
               </div>
               <h2 className="text-xl font-bold text-[#001d36]">{incTitle}</h2>
@@ -154,9 +221,21 @@ export const LiveIncident = () => {
               <div className="text-right pr-2">
                 <div className="text-[11px] text-[#74777e]">Confidence</div>
                 <div className="text-base font-bold text-[#001d36]">
-                  {confidencePct}% · {isVerified ? "Verified" : "Unverified"}
+                  {confidencePct !== null ? `${confidencePct}%` : "Not calculated"}
                 </div>
               </div>
+
+              {officialUrl && (
+                <a
+                  href={officialUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>View Official Source</span>
+                  <span className="material-symbols-outlined text-sm">open_in_new</span>
+                </a>
+              )}
 
               {userRole !== "viewer" && (
                 <button
@@ -183,6 +262,52 @@ export const LiveIncident = () => {
             </div>
           </div>
 
+          {/* Authoritative Source Provenance Card (Requirement 13) */}
+          <div className="bg-white border border-[#E7DED2] rounded-xl p-4 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#001d36] flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm text-[#001d36]">verified</span>
+              Live Source Data Provenance
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Primary Source</div>
+                <div className="font-bold text-[#001d36] truncate">{incident.source || "GDACS"}</div>
+              </div>
+
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Source Event ID</div>
+                <div className="font-mono font-bold text-[#001d36] truncate">{incident.source_event_id || incident.id}</div>
+              </div>
+
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Event Occurrence (event_time)</div>
+                <div className="font-mono text-[11px] font-bold text-[#001d36] truncate">
+                  {incident.event_time ? new Date(incident.event_time).toUTCString().replace("GMT", "UTC") : "Recent"}
+                </div>
+              </div>
+
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Last Source Update</div>
+                <div className="font-mono text-[11px] text-slate-700 truncate">
+                  {sourceUpdatedAt ? new Date(sourceUpdatedAt).toUTCString().replace("GMT", "UTC") : "Recent"}
+                </div>
+              </div>
+
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Retrieved by DisasterLens</div>
+                <div className="font-mono text-[11px] text-slate-700 truncate">
+                  {retrievedAt ? new Date(retrievedAt).toUTCString().replace("GMT", "UTC") : "Live"}
+                </div>
+              </div>
+
+              <div className="bg-[#FAF7F2] border border-[#E7DED2] p-2.5 rounded-lg">
+                <div className="text-[10px] text-[#74777e]">Source Status</div>
+                <div className="font-bold text-green-700 truncate">{incident.source_status || "CURRENT"}</div>
+              </div>
+            </div>
+          </div>
+
           {/* Tab Selection */}
           <div className="flex border-b border-[#E7DED2] gap-6">
             <button
@@ -193,7 +318,7 @@ export const LiveIncident = () => {
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
               }`}
             >
-              Evidence & Weather
+              Evidence & Telemetry ({evidenceList.length})
             </button>
             <button
               onClick={() => setActiveTab("ai_verify")}
@@ -203,42 +328,59 @@ export const LiveIncident = () => {
                   : "border-transparent text-[#74777e] hover:text-[#001d36]"
               }`}
             >
-              Verification
+              Confidence Breakdown & AI Verification
             </button>
           </div>
 
           {/* Main Grid Content */}
           {activeTab === "overview" ? (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Left Column: Evidence Sources & Weather */}
+              {/* Left Column: Authentic Evidence Records */}
               <div className="lg:col-span-8 space-y-5">
-                <div className="bg-white border border-[#E7DED2] rounded-lg p-4 space-y-3">
+                <div className="bg-white border border-[#E7DED2] rounded-xl p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-xs text-[#001d36] flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-base">layers</span>
-                      Evidence Sources ({evidenceList.length})
+                      Corroborating Evidence Sources ({evidenceList.length})
                     </h3>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-2.5">
                     {evidenceList.map((ev, idx) => {
-                      const srcName = (ev.source || ev.sourceType || "Report Ingest")
-                      const conf = Math.round((Number(ev.confidence) <= 1 ? Number(ev.confidence) * 100 : Number(ev.confidence)) || 90)
+                      const srcName = ev.source || ev.sourceType || "Authoritative Feed"
+                      const evConf = ev.confidence !== null && ev.confidence !== undefined
+                        ? Math.round(Number(ev.confidence) <= 1 ? Number(ev.confidence) * 100 : Number(ev.confidence))
+                        : 90
+
                       return (
-                        <div key={idx} className="border border-[#E7DED2] rounded-lg p-3 bg-[#FAF7F2] flex flex-col justify-between space-y-1.5">
+                        <div key={idx} className="border border-[#E7DED2] rounded-lg p-3 bg-[#FAF7F2] space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-[#001d36]">
-                              {srcName}
-                            </span>
-                            <span className="text-[11px] font-medium text-slate-700">
-                              {conf}% confidence
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-[#001d36]">{srcName}</span>
+                              <span className="text-[11px] font-mono text-[#74777e]">ID: {ev.source_event_id || ev.sourceId || "Primary"}</span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-green-800 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                              {evConf}% confidence
                             </span>
                           </div>
-                          <div className="text-[11px] text-[#43474d] truncate">
-                            {ev.text || ev.sourceId || "Corroborated incident report"}
-                          </div>
-                          <div className="text-[10px] text-[#74777e]">
-                            {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : "Recent"}
+
+                          <p className="text-xs text-[#43474d]">
+                            Relationship: <span className="font-medium">{ev.relationship || "Authoritative disaster feed update"}</span>
+                          </p>
+
+                          <div className="flex flex-wrap items-center justify-between text-[11px] text-[#74777e] pt-1.5 border-t border-[#E7DED2]">
+                            <span>Source Timestamp: {ev.source_timestamp ? new Date(ev.source_timestamp).toUTCString() : "Recent"}</span>
+                            {ev.source_url && (
+                              <a
+                                href={ev.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline font-semibold flex items-center gap-0.5"
+                              >
+                                <span>Official Source Link</span>
+                                <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                              </a>
+                            )}
                           </div>
                         </div>
                       )
@@ -247,18 +389,18 @@ export const LiveIncident = () => {
                 </div>
 
                 {/* Weather & Flood Correlation Panel */}
-                <div className="bg-white border border-[#E7DED2] rounded-lg p-4 space-y-3">
+                <div className="bg-white border border-[#E7DED2] rounded-xl p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-xs text-[#001d36] flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-base">water_drop</span>
-                      Weather Correlation
+                      Real-Time Open-Meteo Telemetry Correlation
                     </h3>
                     <button
                       onClick={handleRunWeatherRisk}
                       disabled={analyzingWeather}
                       className="bg-[#001d36] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#17324d] transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      {analyzingWeather ? "Checking..." : "Check Weather"}
+                      {analyzingWeather ? "Checking..." : "Query Telemetry"}
                     </button>
                   </div>
 
@@ -277,7 +419,7 @@ export const LiveIncident = () => {
                         <div className="text-sm font-semibold text-[#001d36]">{weatherAnalysis.flood?.riverDischarge ?? 0} m³/s</div>
                       </div>
                       <div className="bg-[#FAF7F2] border border-[#E7DED2] p-3 rounded-lg">
-                        <div className="text-[#74777e] text-[10px]">Correlation</div>
+                        <div className="text-[#74777e] text-[10px]">Telemetry Alignment</div>
                         <div className="text-sm font-semibold text-green-700">
                           {Math.round((weatherAnalysis.correlation?.score || 0) * 100)}% ({weatherAnalysis.correlation?.relevance || "moderate"})
                         </div>
@@ -285,7 +427,7 @@ export const LiveIncident = () => {
                     </div>
                   ) : (
                     <p className="text-xs text-[#74777e]">
-                      Click "Check Weather" to correlate coordinates with real-time precipitation, wind, and river telemetry.
+                      Click "Query Telemetry" to cross-reference incident coordinates ({lat.toFixed(2)}°, {lon.toFixed(2)}°) with live weather & flood metrics.
                     </p>
                   )}
                 </div>
@@ -293,36 +435,36 @@ export const LiveIncident = () => {
 
               {/* Right Column: Recommendations */}
               <div className="lg:col-span-4 space-y-5">
-                <div className="bg-white border border-[#E7DED2] rounded-lg p-4 space-y-3">
+                <div className="bg-white border border-[#E7DED2] rounded-xl p-4 space-y-3 shadow-sm">
                   <h3 className="font-semibold text-xs text-[#001d36] flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-base">health_and_safety</span>
-                    Recommended Actions
+                    Operational Directives
                   </h3>
 
                   <div className="space-y-2.5">
                     <div className="p-3 bg-red-50/60 border border-red-200 rounded-lg text-xs space-y-0.5">
-                      <p className="font-semibold text-[#001d36]">Dispatch First Responders</p>
+                      <p className="font-semibold text-[#001d36]">First Responder Dispatch</p>
                       <p className="text-[11px] text-[#74777e]">Coordinate emergency units to {incLocation}.</p>
                     </div>
 
                     <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg text-xs space-y-0.5">
-                      <p className="font-semibold text-[#001d36]">Monitor Weather Signals</p>
-                      <p className="text-[11px] text-[#74777e]">Continuous radar & river basin telemetry tracking.</p>
+                      <p className="font-semibold text-[#001d36]">Continuous Feed Monitoring</p>
+                      <p className="text-[11px] text-[#74777e]">Maintain active sync cycle with {incident.source || "GDACS"}.</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            /* Verification Tab */
-            <div className="bg-white border border-[#E7DED2] rounded-lg p-5 space-y-5 max-w-4xl">
+            /* AI Verification & Confidence Factors Tab */
+            <div className="bg-white border border-[#E7DED2] rounded-xl p-5 space-y-5 max-w-4xl shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-sm text-[#001d36]">
-                    Incident Verification
+                    Explainable Confidence & Verification Factors
                   </h3>
                   <p className="text-xs text-[#74777e] mt-0.5">
-                    Evaluates multi-source evidence, geographic consistency, and cross-checks telemetry signals.
+                    Every score is derived from source reliability, multi-source corroboration, sensor cross-reference, and spatial-temporal alignment.
                   </p>
                 </div>
                 <button
@@ -330,45 +472,44 @@ export const LiveIncident = () => {
                   disabled={verifyingAI}
                   className="bg-[#001d36] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#17324d] transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {verifyingAI ? "Verifying..." : "Run Verification"}
+                  {verifyingAI ? "Evaluating..." : "Run AI Verification"}
                 </button>
               </div>
 
-              {aiVerification ? (
-                <div className="space-y-3.5 text-xs">
-                  <div className="p-4 bg-[#FAF7F2] border border-[#E7DED2] rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm text-[#001d36]">
-                        Status: {(aiVerification.verificationStatus || "corroborated").toUpperCase()}
-                      </span>
-                      <span className="font-semibold text-green-700">
-                        {Math.round((aiVerification.confidence || 0.8) * 100)}% Confidence
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#43474d] leading-relaxed">{aiVerification.reasoning || aiVerification.summary}</p>
-                    <div className="text-[10px] text-[#74777e]">Source: {aiVerification.analysisSource}</div>
-                  </div>
-
-                  {Array.isArray(aiVerification.confidenceFactors) && (
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-xs text-[#001d36]">Confidence Factors Breakdown:</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {aiVerification.confidenceFactors.map((f, i) => (
-                          <div key={i} className="p-2.5 bg-white border border-[#E7DED2] rounded-lg">
-                            <div className="flex justify-between font-medium text-[#001d36]">
-                              <span>{f.factor}</span>
-                              <span>{Math.round(f.score * 100)}%</span>
-                            </div>
-                            <div className="text-[10px] text-[#74777e] mt-0.5">{f.detail}</div>
-                          </div>
-                        ))}
+              {/* Confidence Factors Grid */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs text-[#001d36]">Confidence Factors Breakdown</h4>
+                {confidenceFactors.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {confidenceFactors.map((f, i) => (
+                      <div key={i} className="p-3 bg-[#FAF7F2] border border-[#E7DED2] rounded-lg space-y-1">
+                        <div className="flex justify-between font-bold text-xs text-[#001d36]">
+                          <span>{f.factor}</span>
+                          <span className="text-green-800">+{f.contributionPercent || Math.round(f.score * 100)}%</span>
+                        </div>
+                        <p className="text-[11px] text-[#74777e]">{f.detail}</p>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-6 bg-[#FAF7F2] border border-[#E7DED2] rounded-lg text-center text-xs text-[#74777e]">
-                  Click "Run Verification" to cross-reference reports and evaluate confidence.
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#74777e]">
+                    {incident.confidenceExplanation || `Calculated confidence: ${confidencePct !== null ? `${confidencePct}%` : "Not calculated"} based on authoritative feed validation.`}
+                  </p>
+                )}
+              </div>
+
+              {/* AI Verification Results */}
+              {aiVerification && (
+                <div className="p-4 bg-[#FAF7F2] border border-[#E7DED2] rounded-lg space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm text-[#001d36]">
+                      AI Status: {(aiVerification.verificationStatus || "corroborated").toUpperCase()}
+                    </span>
+                    <span className="font-bold text-green-700">
+                      {Math.round((aiVerification.confidence || 0.85) * 100)}% Overall Confidence
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#43474d] leading-relaxed">{aiVerification.reasoning || aiVerification.summary}</p>
                 </div>
               )}
             </div>

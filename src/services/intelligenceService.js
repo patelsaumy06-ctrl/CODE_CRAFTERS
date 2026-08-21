@@ -1,29 +1,7 @@
 import { api } from "./apiClient"
 
-/** Demo-only feed items — marked with isDemo: true */
-export const DEMO_FEED = [
-  {
-    source: "X/Twitter Stream",
-    handle: "@city_resident",
-    text: "[DEMO] Water level rising fast near 4th street bridge! Roads completely impassable.",
-    urgency: "High",
-    sentiment: "Panic / Crisis",
-    confidence: 91,
-    isDemo: true,
-  },
-  {
-    source: "NOAA Sensor API",
-    handle: "Station #402",
-    text: "[DEMO] Telemetry spike: Water Gauge reading +2.4 meters above normal baseline.",
-    urgency: "Critical",
-    sentiment: "Sensor Trigger",
-    confidence: 99,
-    isDemo: true,
-  },
-]
-
 /**
- * Fetch intelligence feed from backend API
+ * Fetch live intelligence feed from backend API
  */
 export const fetchIntelligenceFeed = async (filters = {}) => {
   try {
@@ -35,13 +13,13 @@ export const fetchIntelligenceFeed = async (filters = {}) => {
     const res = await api.get(`/api/intelligence/feed${qs ? `?${qs}` : ""}`)
     return res.data || []
   } catch (error) {
-    console.warn("Intelligence API unavailable, using demo fallback:", error.message)
-    return DEMO_FEED
+    console.warn("Intelligence API unavailable:", error.message)
+    return []
   }
 }
 
 /**
- * Real-time intelligence feed via Express REST API polling
+ * Real-time intelligence feed listener via Express REST API polling
  */
 export const listenToIntelligenceFeed = (callback) => {
   let isSubscribed = true
@@ -49,10 +27,11 @@ export const listenToIntelligenceFeed = (callback) => {
   const fetchAndNotify = () => {
     fetchIntelligenceFeed()
       .then((items) => {
-        if (isSubscribed) callback(items.length > 0 ? items : DEMO_FEED)
+        if (isSubscribed) callback(items || [])
       })
-      .catch(() => {
-        if (isSubscribed) callback(DEMO_FEED)
+      .catch((err) => {
+        console.error("Error fetching live intelligence feed:", err)
+        if (isSubscribed) callback([])
       })
   }
 
@@ -74,9 +53,8 @@ export const createIntelligenceItem = async (data) => {
   const lat = Number(latRaw)
   const lng = Number(lngRaw)
 
-  // UI form may omit coordinates — use demo region defaults instead of 0,0
-  const latitude = !Number.isNaN(lat) && latRaw !== undefined ? lat : 19.076
-  const longitude = !Number.isNaN(lng) && lngRaw !== undefined ? lng : 72.8777
+  const latitude = !Number.isNaN(lat) && latRaw !== undefined ? lat : 0
+  const longitude = !Number.isNaN(lng) && lngRaw !== undefined ? lng : 0
 
   const res = await api.post("/api/ingest/citizen", {
     title: data.title || data.text?.slice(0, 80) || "Citizen Report",
@@ -132,4 +110,3 @@ export const analyzeRisk = async (payload) => {
     return null
   }
 }
-

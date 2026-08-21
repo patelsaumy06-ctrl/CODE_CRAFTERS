@@ -29,8 +29,11 @@ export async function fetchRecentEarthquakes(feedType = "2.5_day") {
 
   try {
     const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(10000),
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "DisasterLens-AI-LiveMonitor/1.0",
+      },
+      signal: AbortSignal.timeout(12000),
     });
 
     if (!response.ok) {
@@ -41,7 +44,7 @@ export async function fetchRecentEarthquakes(feedType = "2.5_day") {
     return data.features || [];
   } catch (error) {
     console.warn(`[USGS Service] Failed to fetch feed '${feedType}':`, error.message);
-    return [];
+    throw error;
   }
 }
 
@@ -68,8 +71,11 @@ export async function queryEarthquakes(params = {}) {
 
   try {
     const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(10000),
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "DisasterLens-AI-LiveMonitor/1.0",
+      },
+      signal: AbortSignal.timeout(12000),
     });
 
     if (!response.ok) {
@@ -80,7 +86,7 @@ export async function queryEarthquakes(params = {}) {
     return data.features || [];
   } catch (error) {
     console.warn("[USGS Service] Query failed:", error.message);
-    return [];
+    throw error;
   }
 }
 

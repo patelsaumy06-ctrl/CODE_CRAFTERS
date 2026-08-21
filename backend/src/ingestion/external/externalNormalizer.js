@@ -1,114 +1,58 @@
 import { v4 as uuidv4 } from "uuid";
-import { SOURCE_TYPES } from "../../config/constants.js";
+import { SOURCE_TYPES, APPLICATION_STATUS, SOURCE_STATUS, DISASTER_TYPES } from "../../config/constants.js";
 
 /**
  * External Data Normalizer — DisasterLens AI
  *
- * Converts raw events from USGS, NASA EONET, and GDACS into canonical NormalizedEvent objects.
+ * Converts raw events from GDACS, USGS, NASA EONET, GDELT, and ReliefWeb
+ * into canonical NormalizedEvent objects with complete source provenance and
+ * distinct timestamps (event_time, source_updated_at, ingested_at, last_seen_at).
  */
 export class ExternalNormalizer {
   /**
-   * Normalize a USGS earthquake feature into a NormalizedEvent.
+   * Validate coordinates to prevent placeholder/fabricated/corrupt coordinates.
    *
-   * @param {Object} feature - USGS GeoJSON feature
-   * @returns {Object} NormalizedEvent
+   * @param {number|null} lat
+   * @param {number|null} lon
+   * @returns {{ latitude: number|null, longitude: number|null, isValid: boolean }}
    */
-  normalizeUsgs(feature) {
-    const props = feature.properties || {};
-    const coords = feature.geometry?.coordinates || [0, 0, 0];
-    const lon = Number(coords[0]) || 0;
-    const lat = Number(coords[1]) || 0;
-    const depth = Number(coords[2]) || 0;
-    const mag = props.mag !== null && props.mag !== undefined ? Number(props.mag) : 0;
+  validateCoordinates(lat, lon) {
+    const nLat = Number(lat);
+    const nLon = Number(lon);
 
-    const sourceId = feature.id || props.code || `usgs_${Date.now()}`;
-    const place = props.place || "Unknown location";
-    const title = props.title || `Earthquake M${mag.toFixed(1)} - ${place}`;
-    const timestamp = props.time ? new Date(props.time) : new Date();
+    if (
+      lat === null ||
+      lon === null ||
+      lat === undefined ||
+      lon === undefined ||
+      Number.isNaN(nLat) ||
+      Number.isNaN(nLon) ||
+      (nLat === 0 && nLon === 0) ||
+      nLat < -90 ||
+      nLat > 90 ||
+      nLon < -180 ||
+      nLon > 180
+    ) {
+      return { latitude: null, longitude: null, isValid: false };
+    }
 
-    return {
-      eventId: uuidv4(),
-      sourceType: SOURCE_TYPES.USGS,
-      sourceId,
-      title,
-      text: `USGS Earthquake Report: Magnitude ${mag.toFixed(1)} detected at ${place}. Depth: ${depth} km. Alert level: ${props.alert || "none"}. Tsunami warning: ${props.tsunami ? "YES" : "No"}.`,
-      description: `Magnitude ${mag.toFixed(1)} earthquake recorded by USGS seismic stations. Location: ${place} (${lat}, ${lon}). Depth: ${depth} km.`,
-      location: {
-        latitude: lat,
-        longitude: lon,
-        address: place,
-      },
-      media: [],
-      timestamp,
-      metadata: {
-        magnitude: mag,
-        depthKm: depth,
-        alert: props.alert || null,
-        tsunami: Boolean(props.tsunami),
-        sig: props.sig || 0,
-        status: props.status || "reviewed",
-        url: props.url || "",
-      },
-      raw: feature,
-    };
+    return { latitude: nLat, longitude: nLon, isValid: true };
   }
 
   /**
-   * Normalize a NASA EONET v3 event into a NormalizedEvent.
-   *
-   * @param {Object} event - NASA EONET event object
-   * @returns {Object} NormalizedEvent
+   * Map GDACS event type codes to standard DisasterLens types.
    */
-  normalizeEonet(event) {
-    const sourceId = event.id || `eonet_${Date.now()}`;
-    const title = event.title || "NASA EONET Natural Event";
-
-    // Extract geometry (most recent coordinate)
-    const geometries = event.geometries || [];
-    const latestGeom = geometries[geometries.length - 1] || {};
-    const coords = latestGeom.coordinates || [0, 0];
-
-    let lat = 0;
-    let lon = 0;
-
-    if (Array.isArray(coords)) {
-      if (typeof coords[0] === "number" && typeof coords[1] === "number") {
-        lon = coords[0];
-        lat = coords[1];
-      } else if (Array.isArray(coords[0]) && typeof coords[0][0] === "number") {
-        lon = coords[0][0];
-        lat = coords[0][1];
-      }
-    }
-
-    const categoryObj = (event.categories && event.categories[0]) || {};
-    const categoryName = categoryObj.title || categoryObj.id || "natural_disaster";
-    const dateStr = latestGeom.date || event.closed || new Date().toISOString();
-    const timestamp = new Date(dateStr);
-    const sourceUrl = (event.sources && event.sources[0]?.url) || event.link || "";
-
-    return {
-      eventId: uuidv4(),
-      sourceType: SOURCE_TYPES.EONET,
-      sourceId,
-      title: `${categoryName}: ${title}`,
-      text: event.description || `NASA EONET tracked natural event: ${title} (${categoryName}).`,
-      description: `${title}. Category: ${categoryName}. Recorded by NASA Earth Observatory Natural Event Tracker.`,
-      location: {
-        latitude: lat,
-        longitude: lon,
-        address: `${title} (${categoryName})`,
-      },
-      media: [],
-      timestamp,
-      metadata: {
-        category: categoryName,
-        categoryId: categoryObj.id || "",
-        link: event.link || "",
-        sourceUrl,
-      },
-      raw: event,
-    };
+  mapGdacsEventType(typeStr = "") {
+    const t = String(typeStr).toLowerCase().trim();
+    if (t === "eq" || t === "earthquake") return DISASTER_TYPES.EARTHQUAKE;
+    if (t === "fl" || t === "flood") return DISASTER_TYPES.FLOOD;
+    if (t === "tc" || t === "cyclone" || t === "hurricane" || t === "typhoon") return DISASTER_TYPES.CYCLONE;
+    if (t === "vo" || t === "volcano") return "volcano";
+    if (t === "dr" || t === "drought") return DISASTER_TYPES.DROUGHT;
+    if (t === "wf" || t === "wildfire" || t === "fire") return DISASTER_TYPES.WILDFIRE;
+    if (t === "ts" || t === "tsunami") return DISASTER_TYPES.TSUNAMI;
+    if (t === "st" || t === "storm") return DISASTER_TYPES.STORM;
+    return DISASTER_TYPES.OTHER;
   }
 
   /**
@@ -118,143 +62,429 @@ export class ExternalNormalizer {
    * @returns {Object} NormalizedEvent
    */
   normalizeGdacs(item) {
-    const sourceId = item.id || item.eventid || `gdacs_${Date.now()}`;
-    const title = item.title || item.name || "GDACS Disaster Alert";
-    const lat = item.latitude !== null && item.latitude !== undefined ? Number(item.latitude) : 0;
-    const lon = item.longitude !== null && item.longitude !== undefined ? Number(item.longitude) : 0;
+    let sourceEventId = String(
+      item.sourceEventId ||
+      item.id ||
+      item.eventid ||
+      item["gdacs:eventid"] ||
+      ""
+    ).trim();
 
-    const alertLevel = (item.alertLevel || item.alertlevel || "Green").toLowerCase();
-    const eventType = item.eventType || item.eventtype || "disaster";
-    const timestamp = item.pubDate ? new Date(item.pubDate) : new Date();
+    if (!sourceEventId && (item.link || item.url || item.sourceUrl)) {
+      const u = item.link || item.url || item.sourceUrl;
+      const match = u.match(/eventid=([^&]+)/i);
+      if (match) sourceEventId = match[1];
+    }
+
+    if (!sourceEventId) {
+      throw new Error("GDACS record missing authoritative event ID");
+    }
+
+    const rawLat = item.latitude ?? item.lat ?? item["geo:lat"] ?? item.location?.latitude ?? item.location?.lat;
+    const rawLon = item.longitude ?? item.lon ?? item["geo:long"] ?? item.location?.longitude ?? item.location?.lon;
+
+    const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(rawLat, rawLon);
+
+    const episodeId = item.episodeId ? String(item.episodeId).trim() : null;
+    const rawEventType = String(item.eventType || item.eventtype || item["gdacs:eventtype"] || "unknown").toLowerCase();
+    const disasterType = this.mapGdacsEventType(rawEventType);
+    const alertLevel = String(item.alertLevel || item.alertlevel || item["gdacs:alertlevel"] || "Green").toLowerCase();
+    const alertScore = Number(item.alertScore ?? item.alertscore) || 0;
+
+    const ingestedAt = new Date().toISOString();
+
+    // Authoritative event occurrence time vs source update time
+    const rawFromDate = item.fromDate || item.fromdate;
+    const rawPubDate = item.pubDate;
+    const rawToDate = item.toDate || item.todate;
+
+    const eventTime = rawFromDate
+      ? new Date(rawFromDate).toISOString()
+      : (rawPubDate ? new Date(rawPubDate).toISOString() : (rawToDate ? new Date(rawToDate).toISOString() : ingestedAt));
+
+    const sourceUpdatedAt = rawPubDate
+      ? new Date(rawPubDate).toISOString()
+      : (rawToDate ? new Date(rawToDate).toISOString() : eventTime);
+
+    const place = item.country || item.address || "Global Region";
+    const title = item.title || `[GDACS ${alertLevel.toUpperCase()}] ${disasterType.toUpperCase()} in ${place}`;
+    const officialUrl = item.sourceUrl || item.link ||
+      `https://www.gdacs.org/report.aspx?eventtype=${rawEventType.toUpperCase()}&eventid=${sourceEventId}`;
+
+    const isCurrent = item.isCurrent !== false;
+    const sourceStatus = isCurrent ? SOURCE_STATUS.CURRENT : SOURCE_STATUS.PAST;
+
+    // Build authentic evidence record
+    const evidenceItem = {
+      source: "GDACS",
+      source_event_id: sourceEventId,
+      source_url: officialUrl,
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: ingestedAt,
+      relationship: "Primary Global Disaster Alert Feed",
+      alert_level: alertLevel,
+      alert_score: alertScore,
+      confidence: 0.95,
+    };
 
     return {
       eventId: uuidv4(),
+      source: "GDACS",
       sourceType: SOURCE_TYPES.GDACS,
-      sourceId,
-      title: `[GDACS ${alertLevel.toUpperCase()}] ${title}`,
+      sourceId: sourceEventId,
+      source_event_id: sourceEventId,
+      episode_id: episodeId,
+      raw_event_type: rawEventType,
+      disasterType,
+      title,
       text: item.description || `Global Disaster Alert: ${title} (Alert Level: ${alertLevel.toUpperCase()}).`,
-      description: item.description || `GDACS Alert for ${eventType} event. Alert Level: ${alertLevel}. Coordinates: ${lat}, ${lon}.`,
+      description: item.description || `GDACS Alert for ${rawEventType.toUpperCase()} event ${sourceEventId}. Alert Level: ${alertLevel}. Coordinates: ${latitude}, ${longitude}.`,
       location: {
-        latitude: lat,
-        longitude: lon,
-        address: title,
+        latitude: hasCoords ? latitude : 0,
+        longitude: hasCoords ? longitude : 0,
+        address: place,
+        hasValidCoordinates: hasCoords,
       },
+      source_status: sourceStatus,
+      application_status: APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: ingestedAt,
+      last_seen_at: ingestedAt,
+      source_url: officialUrl,
       media: [],
-      timestamp,
+      timestamp: new Date(eventTime),
+      evidence: [evidenceItem],
       metadata: {
+        source: "GDACS",
+        sourceEventId,
+        episodeId,
         alertLevel,
-        eventType,
-        link: item.link || "",
+        alertScore,
+        rawEventType,
+        url: officialUrl,
+        country: place,
+        fromDate: rawFromDate ? new Date(rawFromDate).toISOString() : null,
+        toDate: rawToDate ? new Date(rawToDate).toISOString() : null,
+        pubDate: rawPubDate ? new Date(rawPubDate).toISOString() : null,
+        isCurrent,
+        verified: false,
       },
       raw: item,
     };
   }
 
   /**
-   * Normalize a GDELT news article into a NormalizedEvent.
+   * Normalize a USGS earthquake feature into a NormalizedEvent.
    *
-   * @param {Object} article - GDELT article object
+   * @param {Object} feature - USGS GeoJSON feature
    * @returns {Object} NormalizedEvent
    */
-  normalizeGdelt(article) {
-    const title = article.title || "GDELT Disaster News";
-    const sourceId = article.url || `gdelt_${Date.now()}`;
-    const domain = article.domain || article.source || "news-source";
-    const text = `${title}. Source: ${domain}.`;
+  normalizeUsgs(feature) {
+    const props = feature.properties || {};
+    const coords = feature.geometry?.coordinates || [0, 0, 0];
+    const rawLon = Number(coords[0]);
+    const rawLat = Number(coords[1]);
+    const depth = Number(coords[2]) || 0;
+    const mag = props.mag !== null && props.mag !== undefined ? Number(props.mag) : 0;
 
-    // Parse GDELT seendate (e.g. 20260819T040000Z or standard ISO)
-    let timestamp = new Date();
-    if (article.seendate) {
-      const s = String(article.seendate);
-      if (s.includes("-")) {
-        const parsed = new Date(s);
-        if (!isNaN(parsed.getTime())) timestamp = parsed;
-      } else if (s.length >= 15 && s.includes("T")) {
-        const year = s.slice(0, 4);
-        const month = s.slice(4, 6);
-        const day = s.slice(6, 8);
-        const hour = s.slice(9, 11);
-        const min = s.slice(11, 13);
-        const sec = s.slice(13, 15);
-        const parsed = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`);
-        if (!isNaN(parsed.getTime())) timestamp = parsed;
-      } else {
-        const parsed = new Date(s);
-        if (!isNaN(parsed.getTime())) timestamp = parsed;
-      }
+    const sourceEventId = String(feature.id || props.code || "").trim();
+    if (!sourceEventId) {
+      throw new Error("USGS earthquake feature missing authoritative event ID");
     }
 
-    const lat = Number(article.latitude ?? article.location?.latitude ?? article.lat) || 0;
-    const lon = Number(article.longitude ?? article.location?.longitude ?? article.lon) || 0;
+    const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(rawLat, rawLon);
+    const place = props.place || "Unknown Seismic Zone";
+    const title = props.title || `Earthquake M${mag.toFixed(1)} - ${place}`;
+
+    const ingestedAt = new Date().toISOString();
+    const eventTime = props.time ? new Date(props.time).toISOString() : ingestedAt;
+    const sourceUpdatedAt = props.updated ? new Date(props.updated).toISOString() : eventTime;
+    const officialUrl = props.url || `https://earthquake.usgs.gov/earthquakes/eventpage/${sourceEventId}`;
+
+    const evidenceItem = {
+      source: "USGS",
+      source_event_id: sourceEventId,
+      source_url: officialUrl,
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: ingestedAt,
+      relationship: "Authoritative Seismic Sensor Feed",
+      magnitude: mag,
+      depth_km: depth,
+      confidence: 0.95,
+    };
 
     return {
       eventId: uuidv4(),
+      source: "USGS",
+      sourceType: SOURCE_TYPES.USGS,
+      sourceId: sourceEventId,
+      source_event_id: sourceEventId,
+      disasterType: DISASTER_TYPES.EARTHQUAKE,
+      title,
+      text: `USGS Earthquake Report: Magnitude ${mag.toFixed(1)} detected at ${place}. Depth: ${depth} km. Status: ${props.status || "reviewed"}. Tsunami warning: ${props.tsunami ? "YES" : "No"}.`,
+      description: `Magnitude ${mag.toFixed(1)} earthquake recorded by USGS seismic stations. Location: ${place} (${latitude}, ${longitude}). Depth: ${depth} km.`,
+      location: {
+        latitude: hasCoords ? latitude : 0,
+        longitude: hasCoords ? longitude : 0,
+        address: place,
+        hasValidCoordinates: hasCoords,
+      },
+      source_status: SOURCE_STATUS.CURRENT,
+      application_status: APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: ingestedAt,
+      last_seen_at: ingestedAt,
+      source_url: officialUrl,
+      media: [],
+      timestamp: new Date(eventTime),
+      evidence: [evidenceItem],
+      metadata: {
+        source: "USGS",
+        sourceEventId,
+        magnitude: mag,
+        depthKm: depth,
+        alert: props.alert || null,
+        tsunami: Boolean(props.tsunami),
+        sig: props.sig || 0,
+        status: props.status || "reviewed",
+        url: officialUrl,
+        verified: props.status === "reviewed",
+      },
+      raw: feature,
+    };
+  }
+
+  /**
+   * Normalize a NASA EONET v3 event into a NormalizedEvent.
+   */
+  normalizeEonet(event) {
+    const sourceEventId = String(event.id || "").trim();
+    if (!sourceEventId) {
+      throw new Error("EONET event missing authoritative ID");
+    }
+
+    const title = event.title || "NASA EONET Natural Event";
+    const geometries = event.geometries || [];
+    const latestGeom = geometries[geometries.length - 1] || {};
+    const coords = latestGeom.coordinates || [0, 0];
+
+    let rawLon = 0;
+    let rawLat = 0;
+    if (Array.isArray(coords)) {
+      if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+        rawLon = coords[0];
+        rawLat = coords[1];
+      } else if (Array.isArray(coords[0]) && typeof coords[0][0] === "number") {
+        rawLon = coords[0][0];
+        rawLat = coords[0][1];
+      }
+    }
+
+    const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(rawLat, rawLon);
+    const categoryObj = (event.categories && event.categories[0]) || {};
+    const categoryName = categoryObj.title || categoryObj.id || "Natural Event";
+
+    const ingestedAt = new Date().toISOString();
+    const dateStr = latestGeom.date || event.closed || ingestedAt;
+    const eventTime = new Date(dateStr).toISOString();
+    const sourceUpdatedAt = event.updated ? new Date(event.updated).toISOString() : eventTime;
+    const officialUrl = (event.sources && event.sources[0]?.url) || event.link || `https://eonet.gsfc.nasa.gov/api/v3/events/${sourceEventId}`;
+
+    const isClosed = Boolean(event.closed);
+
+    const evidenceItem = {
+      source: "NASA_EONET",
+      source_event_id: sourceEventId,
+      source_url: officialUrl,
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: ingestedAt,
+      relationship: "NASA Earth Observatory Tracking",
+      confidence: 0.95,
+    };
+
+    return {
+      eventId: uuidv4(),
+      source: "NASA_EONET",
+      sourceType: SOURCE_TYPES.EONET,
+      sourceId: sourceEventId,
+      source_event_id: sourceEventId,
+      title: `${categoryName}: ${title}`,
+      text: event.description || `NASA EONET tracked natural event: ${title} (${categoryName}).`,
+      description: `${title}. Category: ${categoryName}. Recorded by NASA Earth Observatory Natural Event Tracker.`,
+      location: {
+        latitude: hasCoords ? latitude : 0,
+        longitude: hasCoords ? longitude : 0,
+        address: `${title} (${categoryName})`,
+        hasValidCoordinates: hasCoords,
+      },
+      source_status: isClosed ? SOURCE_STATUS.CLOSED : SOURCE_STATUS.CURRENT,
+      application_status: isClosed ? APPLICATION_STATUS.HISTORICAL : APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: ingestedAt,
+      last_seen_at: ingestedAt,
+      source_url: officialUrl,
+      media: [],
+      timestamp: new Date(eventTime),
+      evidence: [evidenceItem],
+      metadata: {
+        source: "NASA_EONET",
+        sourceEventId,
+        category: categoryName,
+        categoryId: categoryObj.id || "",
+        link: event.link || "",
+        sourceUrl: officialUrl,
+      },
+      raw: event,
+    };
+  }
+
+  /**
+   * Normalize a GDELT news article into a NormalizedEvent.
+   */
+  normalizeGdelt(article) {
+    const title = article.title || "GDELT Disaster News";
+    const sourceEventId = String(article.url || article.id || `gdelt_${Date.now()}`);
+    const domain = article.domain || article.source || "news-source";
+    const text = `${title}. Source: ${domain}.`;
+
+    let timestamp = new Date();
+    if (article.seendate) {
+      const s = String(article.seendate);
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) timestamp = parsed;
+    }
+
+    const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(
+      article.latitude ?? article.location?.latitude ?? article.lat,
+      article.longitude ?? article.location?.longitude ?? article.lon
+    );
+
+    const ingestedAt = new Date().toISOString();
+    const eventTime = timestamp.toISOString();
+    const sourceUpdatedAt = eventTime;
+    const officialUrl = article.url || "";
+
+    const evidenceItem = {
+      source: "GDELT",
+      source_event_id: sourceEventId,
+      source_url: officialUrl,
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: ingestedAt,
+      relationship: "News Wire Corroboration",
+      confidence: 0.50,
+    };
+
+    return {
+      eventId: uuidv4(),
+      source: "GDELT",
       sourceType: SOURCE_TYPES.GDELT,
-      sourceId,
+      sourceId: sourceEventId,
+      source_event_id: sourceEventId,
       title: `[News] ${title}`,
       text,
       description: `Disaster news reported by ${domain}: ${title}`,
       location: {
-        latitude: lat,
-        longitude: lon,
+        latitude: hasCoords ? latitude : 0,
+        longitude: hasCoords ? longitude : 0,
         address: article.sourcecountry || article.location?.address || domain,
+        hasValidCoordinates: hasCoords,
       },
+      source_status: SOURCE_STATUS.CURRENT,
+      application_status: APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: ingestedAt,
+      last_seen_at: ingestedAt,
+      source_url: officialUrl,
       media: article.socialimage ? [article.socialimage] : [],
       timestamp,
+      evidence: [evidenceItem],
       metadata: {
-        url: article.url || "",
+        source: "GDELT",
+        sourceEventId,
+        url: officialUrl,
         domain,
         language: article.language || "English",
         sourceCountry: article.sourcecountry || "",
-        verified: false, // News is strictly unverified initially
+        verified: false,
       },
       raw: article,
     };
   }
 
   /**
-   * Normalize a ReliefWeb humanitarian report into a NormalizedEvent.
-   *
-   * @param {Object} item - ReliefWeb report object
-   * @returns {Object} NormalizedEvent
+   * Normalize a ReliefWeb report into a NormalizedEvent.
    */
   normalizeReliefWeb(item) {
     const fields = item.fields || item;
-    const sourceId = String(fields.id || item.id || `rw_${Date.now()}`);
+    const sourceEventId = String(fields.id || item.id || `rw_${Date.now()}`);
     const title = fields.title || "ReliefWeb Humanitarian Report";
 
     const bodyText = fields.body ? fields.body.slice(0, 500) : "";
     const sourceOrg = fields.source?.[0]?.name || fields.source?.[0]?.shortname || "Humanitarian Partner";
     const country = fields.primary_country || fields.country?.[0] || {};
-    const countryName = country.name || "";
+    const countryName = country.name || "Global / Regional";
     const coords = country.location || {};
 
-    const lat = Number(coords.lat) || 0;
-    const lon = Number(coords.lon) || 0;
+    const { latitude, longitude, isValid: hasCoords } = this.validateCoordinates(coords.lat, coords.lon);
 
+    const ingestedAt = new Date().toISOString();
     const dateStr = fields.date?.created || fields.date?.original || fields.date?.changed;
-    const timestamp = dateStr ? new Date(dateStr) : new Date();
+    const eventTime = dateStr ? new Date(dateStr).toISOString() : ingestedAt;
+    const sourceUpdatedAt = fields.date?.changed ? new Date(fields.date.changed).toISOString() : eventTime;
+    const officialUrl = fields.url || `https://reliefweb.int/node/${sourceEventId}`;
+
+    const evidenceItem = {
+      source: "RELIEFWEB",
+      source_event_id: sourceEventId,
+      source_url: officialUrl,
+      event_time: eventTime,
+      source_timestamp: sourceUpdatedAt,
+      retrieved_at: ingestedAt,
+      relationship: "Humanitarian Partner Report",
+      confidence: 0.85,
+    };
 
     return {
       eventId: uuidv4(),
+      source: "RELIEFWEB",
       sourceType: SOURCE_TYPES.RELIEFWEB,
-      sourceId,
+      sourceId: sourceEventId,
+      source_event_id: sourceEventId,
       title: `[ReliefWeb] ${title}`,
       text: bodyText ? `${title} — ${bodyText}` : title,
       description: `Humanitarian situation report by ${sourceOrg}: ${title}`,
       location: {
-        latitude: lat,
-        longitude: lon,
-        address: countryName || "Global / Regional",
+        latitude: hasCoords ? latitude : 0,
+        longitude: hasCoords ? longitude : 0,
+        address: countryName,
+        hasValidCoordinates: hasCoords,
       },
+      source_status: SOURCE_STATUS.CURRENT,
+      application_status: APPLICATION_STATUS.LIVE,
+      event_time: eventTime,
+      source_updated_at: sourceUpdatedAt,
+      ingested_at: ingestedAt,
+      last_seen_at: ingestedAt,
+      source_url: officialUrl,
       media: [],
-      timestamp,
+      timestamp: new Date(eventTime),
+      evidence: [evidenceItem],
       metadata: {
+        source: "RELIEFWEB",
+        sourceEventId,
         sourceOrg,
         country: countryName,
-        url: fields.url || `https://reliefweb.int/node/${sourceId}`,
+        url: officialUrl,
         disaster: fields.disaster || [],
-        verified: false, // Trusted humanitarian source, but unverified alone
+        verified: false,
       },
       raw: item,
     };

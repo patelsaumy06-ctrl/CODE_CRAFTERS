@@ -23,6 +23,84 @@ export const SEVERITY = {
 
 export const SEVERITY_ORDER = { low: 0, medium: 1, high: 2, critical: 3 };
 
+// ─── Status Enums ────────────────────────────────────────────────
+export const APPLICATION_STATUS = {
+  LIVE: "LIVE",
+  HISTORICAL: "HISTORICAL",
+  EXPIRED: "EXPIRED",
+  STALE: "STALE",
+};
+
+export const SOURCE_STATUS = {
+  CURRENT: "CURRENT",
+  PAST: "PAST",
+  CLOSED: "CLOSED",
+  UNKNOWN: "UNKNOWN",
+};
+
+export const SYNC_STATUS = {
+  HEALTHY: "LIVE",
+  SYNCING: "SYNCING",
+  STALE: "STALE",
+  OFFLINE: "OFFLINE",
+  DEGRADED: "DEGRADED",
+};
+
+export const VERIFICATION_STATUS = {
+  UNVERIFIED: "UNVERIFIED",
+  CORROBORATED: "CORROBORATED",
+  OFFICIALLY_CONFIRMED: "OFFICIALLY_CONFIRMED",
+  CONFLICTING: "CONFLICTING",
+};
+
+// ─── Dynamic Rolling Date Window Helper (UTC) ───────────────────
+/**
+ * Calculates dynamic rolling calendar day window in UTC relative to system date.
+ * [Day -(days-1) 00:00:00.000 UTC, Today 23:59:59.999 UTC]
+ *
+ * @param {number} days - Number of inclusive calendar days (default: 3)
+ * @param {Date|string|number} referenceDate - Current system time or mock date
+ * @returns {{ days: number, start: string, end: string, startTimeMs: number, endTimeMs: number }}
+ */
+export function getRollingDateWindow(days = 3, referenceDate = new Date()) {
+  const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const now = isNaN(ref.getTime()) ? new Date() : ref;
+
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1), 0, 0, 0, 0));
+
+  return {
+    days,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    startTimeMs: start.getTime(),
+    endTimeMs: end.getTime(),
+  };
+}
+
+/**
+ * Validates whether an authoritative event occurrence time falls within the given date window.
+ *
+ * @param {Date|string|number} eventTime
+ * @param {Object} window - Output of getRollingDateWindow()
+ * @returns {boolean}
+ */
+export function isWithinDateWindow(eventTime, window = getRollingDateWindow(3)) {
+  if (!eventTime) return false;
+  const ts = eventTime instanceof Date ? eventTime.getTime() : new Date(eventTime).getTime();
+  if (isNaN(ts)) return false;
+  return ts >= window.startTimeMs && ts <= window.endTimeMs;
+}
+
+// ─── Source Freshness Windows (ms) ──────────────────────────────
+export const FRESHNESS_CONFIG = {
+  GDACS_WINDOW_MS: parseInt(process.env.GDACS_FRESHNESS_WINDOW_MS, 10) || 15 * 60 * 1000,   // GDACS refreshed every ~6 min
+  USGS_WINDOW_MS: parseInt(process.env.USGS_FRESHNESS_WINDOW_MS, 10) || 15 * 60 * 1000,     // USGS refreshed every ~5 min
+  EONET_WINDOW_MS: parseInt(process.env.EONET_FRESHNESS_WINDOW_MS, 10) || 30 * 60 * 1000,
+  GDELT_WINDOW_MS: parseInt(process.env.GDELT_FRESHNESS_WINDOW_MS, 10) || 30 * 60 * 1000,
+  RELIEFWEB_WINDOW_MS: parseInt(process.env.RELIEFWEB_FRESHNESS_WINDOW_MS, 10) || 60 * 60 * 1000,
+};
+
 // ─── User Roles ─────────────────────────────────────────────────
 export const ROLES = {
   ADMIN: "admin",
